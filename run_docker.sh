@@ -1,0 +1,1 @@
+docker run -v /Users/harmenmoll/Projects/AdventOfCode:/home/harmenmoll/Projects/AdventOfCode --name adventofcode --interactive -d adventofcode
