@@ -2,129 +2,94 @@
 #include <numeric>
 #include <string>
 #include <vector>
+#include <utility>
 
 #include "Utils/FileIO.hpp"
 
-typedef std::vector<std::string> Rugsack;
+typedef std::pair<int, int> Section;
+typedef std::pair<Section, Section> SectionPair;
 
-Rugsack GetRugsackFromString(const std::string& input)
+Section GetSectionFromString(const std::string& input)
 {
-    const std::string firstCompartiment = input.substr(0, input.length()/2);
-    const std::string secondCompartiment = input.substr(input.length()/2, input.length());
+    constexpr size_t dashOffset = 1;
+    const int min = std::stoi(input.substr(0, input.find('-')));
+    const int max = std::stoi(input.substr(input.find('-')+dashOffset, input.size()));
 
-    return Rugsack {firstCompartiment, secondCompartiment};
+    return std::make_pair(min, max);
 }
 
-std::vector<Rugsack> GetRugsacksFromFile()
+void AddSectionsOfLine(const std::string& line, std::vector<Section>& sections)
 {
-    Utils::FileIo fileIo("../src/day3-input.txt");
-    const auto filePerLines = fileIo.GetFileContent();
+    constexpr size_t commaOffset = 1;
+    std::string firstSection = line.substr(0, line.find(','));
+    std::string secondSection = line.substr(line.find(',')+commaOffset, line.size());
 
-    std::vector<Rugsack> rugsacks;
-    for(const auto& line : filePerLines)
-    {
-        rugsacks.push_back(GetRugsackFromString(line));
-    }
-
-    return rugsacks;
+    sections.push_back(GetSectionFromString(firstSection));
+    sections.push_back(GetSectionFromString(secondSection));
 }
 
-char GetSharedItemInRugsack(const Rugsack& rugsack)
+SectionPair GetSectionPairFromLine(const std::string& line, std::vector<Section>& sections)
 {
-    for(const auto& item : rugsack[0])
-    {
-        const auto itemIter = rugsack[1].find(item);
-        if(itemIter != rugsack[1].npos)
-        {
-            return item;
-        }
-    }
-    return {};
+    constexpr size_t commaOffset = 1;
+    std::string firstSection = line.substr(0, line.find(','));
+    std::string secondSection = line.substr(line.find(',')+commaOffset, line.size());
+
+    return std::make_pair(firstSection, secondSection);
 }
 
-int GetValueOfItem(const char& item)
+std::vector<Section> GetSectionsFromFile()
 {
-    if(item >= 'A' && item <= 'Z')
+    Utils::FileIo fileIo("../src/day4-input.txt");
+    const auto filePerLine = fileIo.GetFileContent();
+
+    std::vector<Section> sections;
+    for(const auto& line : filePerLine)
     {
-        return static_cast<int>(item - 38);
+        AddSectionsOfLine(line, sections);
     }
-    else return static_cast<int>(item - 96);
+
+    return sections;
 }
 
-std::vector<char> GetSharedItemsOfAllRugsacks(const std::vector<Rugsack>& rugsacks)
+bool IsInRange(const int number, const int min, const int max)
 {
-    std::vector<char> sharedItems;
-    for(const auto& rugsack : rugsacks)
-    {
-        sharedItems.push_back(GetSharedItemInRugsack(rugsack));
-    }
-
-    return sharedItems;
+    return number >= min && number <= max;
 }
 
-std::vector<int> GetValuesOfItems(const std::vector<char> items)
+bool DoesSectionFitWithinOtherSection(const Section& section, const Section& other)
 {
-    std::vector<int> values;
-    for(const auto& item: items)
-    {
-        values.push_back(GetValueOfItem(item));
-    }
+    const bool isLowerSectionInRange = IsInRange(std::get<0>(section), std::get<0>(other), std::get<1>(other));
+    const bool isUpperSectionInRange = IsInRange(std::get<1>(section), std::get<0>(other), std::get<1>(other));
 
-    return values;
+    return isLowerSectionInRange && isUpperSectionInRange;
 }
 
 void FirstPart()
 {
     std::cout << "= First part =\n";
-    const std::vector<Rugsack> rugsacks = GetRugsacksFromFile();
-    const auto sharedItemsOfRugsacks = GetSharedItemsOfAllRugsacks(rugsacks);
-    const auto valuesOfSharedItems = GetValuesOfItems(sharedItemsOfRugsacks);
-
-    const auto totalScore = std::accumulate(valuesOfSharedItems.begin(), valuesOfSharedItems.end(), 0);
-
-    std::cout << "\tTotal value of all shared items: " << std::to_string(totalScore) << "\n";
-}
-
-char FindGroupItemInRugsacks(const std::string& firstRugsack, const std::string& secondRugsack, const std::string& thirdRugsack)
-{
-    for(const auto& item : firstRugsack)
+    const auto sections = GetSectionsFromFile();
+    for(const auto& section : sections)
     {
-        if(secondRugsack.find(item) != secondRugsack.npos && thirdRugsack.find(item) != thirdRugsack.npos)
+        for(const auto& compareSection : sections)
         {
-            return item;
+            if(compareSection != section)
+            {
+                const bool isInSectionRange = DoesSectionFitWithinOtherSection(section, compareSection);
+                
+                if(isInSectionRange)
+                {   
+                    std::cout << std::get<0>(section) << "-" << std::get<1>(section) << " AND ";
+                    std::cout << std::get<0>(compareSection) << "-" << std::get<1>(compareSection);
+                    std::cout << " = Yes\n";
+                }
+           }
         }
     }
-
-    return '?';
-}
-
-std::vector<char> IdentifyGroupItemsFromRugsacks(const std::vector<std::string>& rugsacks)
-{
-    constexpr size_t groupSize = 3;
-    std::vector<char> groupItems;
-    for(size_t index = 0; index < rugsacks.size() - 2; index+=groupSize)
-    {
-        const auto& firstRugsack = rugsacks[index];
-        const auto& secondRugsack = rugsacks[index+1];
-        const auto& thirdRugsack = rugsacks[index+2];
-        groupItems.push_back(FindGroupItemInRugsacks(firstRugsack, secondRugsack, thirdRugsack));
-    }
-
-    return groupItems;
 }
 
 void SecondPart()
 {
     std::cout << "= Second part =\n";
-    Utils::FileIo fileIo("../src/day3-input.txt");
-    const auto filePerLines = fileIo.GetFileContent();
-
-    const std::vector<char> groupItems = IdentifyGroupItemsFromRugsacks(filePerLines);
-    const auto valuesOfGroupItems = GetValuesOfItems(groupItems);
-
-    const auto totalScore = std::accumulate(valuesOfGroupItems.begin(), valuesOfGroupItems.end(), 0);
-    std::cout << "\tTotal score of goup items: " << std::to_string(totalScore) << "\n";
-
 }
 
 int main()
