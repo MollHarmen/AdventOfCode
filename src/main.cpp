@@ -1,170 +1,96 @@
 #include <algorithm>
 #include <iostream>
 #include <map>
+#include <numeric>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "Utils/FileIO.hpp"
 
-struct Head
+typedef std::vector<std::pair<std::string, int>> InstructionSet;
+
+struct Cpu
 {
-    void Move(const std::string direction)
+
+    Cpu(const InstructionSet& instructionSet)
+    : mInstructionSet(instructionSet)
+    {}
+
+    int GetRegisterValueDuringCycleNumber(const int cycleNumber)
     {
-        if(direction == "U")
+        int instructionPointer = 0;
+        int additionToPerform = 0;
+        for(int cycles = 1; cycles != cycleNumber; ++cycles)
         {
-            ++y;
-        } 
-        else if(direction == "D")
-        {
-            --y;
+            if(additionToPerform == 0)
+            {   
+                const auto& instruction = std::get<0>(mInstructionSet[instructionPointer]);
+                if(instruction != "noop")
+                {
+                    additionToPerform = std::get<1>(mInstructionSet[instructionPointer]);
+                }
+                ++instructionPointer;
+            }
+            else
+            {
+                registerX += additionToPerform;
+                additionToPerform = 0;
+            }
         }
-        else if(direction == "L")
-        {
-            --x;
-        }
-        else if(direction == "R")
-        {
-            ++x;
-        }
+
+        return registerX;
     }
 
-    int x = 0;
-    int y = 0;
+    std::vector<int> SampleSignalStrengthAtCycleIntervals(const std::vector<int>& sampleIntervals)
+    {
+        std::vector<int> signalStrengthSamples;
+        for(const auto& sampleInterval : sampleIntervals)
+        {
+            registerX = 1;
+            const auto sample = GetRegisterValueDuringCycleNumber(sampleInterval);
+            signalStrengthSamples.push_back(sample * sampleInterval);
+        }
+
+        return signalStrengthSamples;
+    }
+
+    const InstructionSet& mInstructionSet;
+    int registerX = 1;
 };
 
-struct Tail
+InstructionSet GetInstructionSetFromFile()
 {
-    Tail()
-    {
-        AddCurrentPossitionToVisited();
-    }
+    Utils::FileIo fileIo("../src/day10-input.txt");
+    const auto filePerLine = fileIo.GetFileContent();
 
-    void Move(const int xHead, const int yHead)
+    InstructionSet instructions;
+    for(const auto& line : filePerLine)
     {
-        if(DiagonalMoveRequired(xHead, yHead))
+        if(line.find("noop") != line.npos)
         {
-            MoveDiagonally(xHead, yHead);
+            instructions.push_back(std::make_pair("noop", 0));
         }
         else
         {
-            SingleAxisMove(xHead, yHead);
-        }
-        AddCurrentPossitionToVisited();
-    }
-
-    bool DiagonalMoveRequired(const int xHead, const int yHead)
-    {
-        return (x != xHead || y != yHead) && ((std::abs(x - xHead) >= 1 && std::abs(y - yHead) == 2) || (std::abs(x - xHead) == 2 && std::abs(y - yHead) >= 1));
-    }
-
-    void MoveDiagonally(const int xHead, const int yHead)
-    {
-        if((xHead - x) > 0)
-        {
-            ++x;
-        }
-        else
-        {
-            --x;
-        }
-
-        if((yHead - y) > 0)
-        {
-            ++y;
-        }
-        else
-        {
-            --y;
+            const std::string instruction = line.substr(0, line.find(" "));
+            const int value = std::stoi(line.substr(line.find(" "), line.length()));
+            instructions.push_back(std::make_pair(instruction, value));
         }
     }
 
-    void SingleAxisMove(const int xHead, const int yHead)
-    {
-        if(x == xHead)
-        {
-            if((yHead - y) > 1)
-            {
-                ++y;
-            }
-            else if((yHead - y) < -1)
-            {
-                --y;
-            }
-        }
-        else if(y == yHead)
-        {
-            if((xHead - x) > 1)
-            {
-                ++x;
-            }
-            else if((xHead - x) < -1)
-            {
-                --x;
-            }
-        }
-    }
-
-    void AddCurrentPossitionToVisited()
-    {
-        positionVisited[std::to_string(x) + std::to_string(y)] = 1;
-    }
-
-    int GetNumberOfPositionsVisited()
-    {
-        return positionVisited.size();
-    }
-
-    int x = 0;
-    int y = 0;
-    std::map<std::string, int> positionVisited;
-};
-
-void Print(const Head& head, const Tail& tail)
-{
-    std::vector<std::vector<std::string>> grid;
-    for(int x = 0; x != 5; ++x)
-    {
-        grid.push_back({".",".",".",".",".","."});
-    }
-    std::cout << "\t HEAD: " << head.x << "-" << head.y << "\n";
-    std::cout << "\t TAIL: " << tail.x << "-" << tail.y << "\n";
-
-    grid[head.y][head.x] = "H";
-    grid[tail.y][tail.x] = "T";
-
-    for(auto iter = grid.end()-1; iter != grid.begin()-1; --iter)
-    {
-        for(const auto& row : *iter)
-        {
-            std::cout << row;
-        }
-        std::cout << "\n";
-    }
-    std::cout << "\n";
+    return instructions;
 }
 
 void FirstPart()
 {
     std::cout << "= First part =\n";
-    Utils::FileIo fileIo("../src/day9-input.txt");
-    const auto filePerLine = fileIo.GetFileContent();
-
-    Head head;
-    Tail tail;
-
-    for(const auto& line : filePerLine)
-    {
-        const std::string direction = line.substr(0, 1);
-        const int numberOfSteps = std::stoi(line.substr(2, line.length()));
-
-        for(int stepsTaken = 0; stepsTaken != numberOfSteps; ++stepsTaken)
-        {
-            head.Move(direction);
-            tail.Move(head.x, head.y);
-        }
-    }
-    std::cout << "\tNumer of position visited: " << tail.GetNumberOfPositionsVisited() << "\n";
+    InstructionSet instructions = GetInstructionSetFromFile();
+    std::vector<int> samplesAtCycle {20, 60, 100, 140, 180, 220};
+    Cpu cpu(instructions);
+    const auto samples = cpu.SampleSignalStrengthAtCycleIntervals(samplesAtCycle);
+    
+    std::cout << "\tSignal strength sum: " << std::accumulate(samples.begin(), samples.end(), 0) << "\n";
 }
 
 void SecondPart()
@@ -173,27 +99,6 @@ void SecondPart()
     Utils::FileIo fileIo("../src/day9-input.txt");
     const auto filePerLine = fileIo.GetFileContent();
 
-    Head head;
-    std::array<Tail, 9> tails = {};
-
-    for(const auto& line : filePerLine)
-    {
-        const std::string direction = line.substr(0, 1);
-        const int numberOfSteps = std::stoi(line.substr(2, line.length()));
-        
-        for(int stepsTaken = 0; stepsTaken != numberOfSteps; ++stepsTaken)
-        {
-            head.Move(direction);
-            tails[0].Move(head.x, head.y);
-
-            for(int index=1; index != tails.size(); ++index)
-            {
-                const auto& leadingTail = tails[index-1];
-                tails[index].Move(leadingTail.x, leadingTail.y);
-            }
-        }
-    }
-    std::cout << "\tNumer of position visited: " << tails[8].GetNumberOfPositionsVisited() << "\n";
 }
 
 int main()
