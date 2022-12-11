@@ -12,51 +12,70 @@ typedef std::vector<std::pair<std::string, int>> InstructionSet;
 
 struct Cpu
 {
-
     Cpu(const InstructionSet& instructionSet)
     : mInstructionSet(instructionSet)
     {}
 
-    int GetRegisterValueDuringCycleNumber(const int cycleNumber)
+    void Tick()
     {
-        int instructionPointer = 0;
-        int additionToPerform = 0;
-        for(int cycles = 1; cycles != cycleNumber; ++cycles)
-        {
-            if(additionToPerform == 0)
-            {   
-                const auto& instruction = std::get<0>(mInstructionSet[instructionPointer]);
-                if(instruction != "noop")
-                {
-                    additionToPerform = std::get<1>(mInstructionSet[instructionPointer]);
-                }
-                ++instructionPointer;
-            }
-            else
+        if(additionToPerform == 0)
+        {   
+            const auto& instruction = std::get<0>(mInstructionSet[instructionPointer]);
+            if(instruction != "noop")
             {
-                registerX += additionToPerform;
-                additionToPerform = 0;
+                additionToPerform = std::get<1>(mInstructionSet[instructionPointer]);
             }
+            ++instructionPointer;
         }
-
-        return registerX;
-    }
-
-    std::vector<int> SampleSignalStrengthAtCycleIntervals(const std::vector<int>& sampleIntervals)
-    {
-        std::vector<int> signalStrengthSamples;
-        for(const auto& sampleInterval : sampleIntervals)
+        else
         {
-            registerX = 1;
-            const auto sample = GetRegisterValueDuringCycleNumber(sampleInterval);
-            signalStrengthSamples.push_back(sample * sampleInterval);
+            registerX += additionToPerform;
+            additionToPerform = 0;
         }
-
-        return signalStrengthSamples;
+        ++cycles;
     }
 
     const InstructionSet& mInstructionSet;
     int registerX = 1;
+    int cycles = 1; 
+    int instructionPointer = 0;
+    int additionToPerform = 0;
+};
+
+struct Crt
+{
+    Crt(Cpu& cpu)
+    : mCpu(cpu);
+    {
+    }
+
+    void Tick()
+    {
+        if(drawPosition == cpu.registerX-1 || drawPosition == cpu.registerX || drawPosition == cpu.registerX+1)
+        {
+            screen[drawPosition++] = '#';
+        }
+        else
+        {
+            screen[drawPosition++] = '.';
+        }
+    }
+    
+    void Print()
+    {
+        for(int index = 0; index != screen.length(); ++index)
+        {
+            std::cout << screen[index];
+            if(index % 40 == 0)
+            {
+                std::cout << "\n";
+            }
+        }
+    }
+
+    std::string screen;
+    int drawPosition = 0;
+    Cpu& mCpu;
 };
 
 InstructionSet GetInstructionSetFromFile()
@@ -86,9 +105,20 @@ void FirstPart()
 {
     std::cout << "= First part =\n";
     InstructionSet instructions = GetInstructionSetFromFile();
-    std::vector<int> samplesAtCycle {20, 60, 100, 140, 180, 220};
     Cpu cpu(instructions);
-    const auto samples = cpu.SampleSignalStrengthAtCycleIntervals(samplesAtCycle);
+
+    std::vector<int> samplesAtCycle {20, 60, 100, 140, 180, 220};
+    std::vector<int> samples;
+    for(const auto& cyclesToSampleAt : samplesAtCycle)
+    {
+        std::cout << "Measure at: " << cyclesToSampleAt << "\n";
+        for(int clockTicks = cpu.cycles; clockTicks != cyclesToSampleAt; ++clockTicks)
+        {
+            std::cout << "tick " << clockTicks << " - " << cpu.registerX << "\n";
+            cpu.Tick();
+        }
+        samples.push_back(cpu.registerX * cyclesToSampleAt);
+    }
     
     std::cout << "\tSignal strength sum: " << std::accumulate(samples.begin(), samples.end(), 0) << "\n";
 }
