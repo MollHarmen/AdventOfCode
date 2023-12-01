@@ -34,7 +34,6 @@ namespace Utils
                 
                 return fileContent;
             }
-
             return {};
         }
 
