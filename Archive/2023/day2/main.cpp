@@ -1,128 +1,179 @@
-#include <algorithm>
 #include <iostream>
-#include <list>
+#include <string>
 #include <vector>
 
 #include "Utils/FileIO.hpp"
+#include "Utils/StringHandling.hpp"
 
-int GetNumberOfCharsInString(const char character, const std::string& string)
+int GetGameIdFromString(const std::string& game)
 {
-    int count = 0;
-    for(const char& sourceChar : string)
+    const auto gameIdStartPosition = game.find("Game ") + 5;
+    const auto gameIdStopPosistion = game.find(": ");
+
+    return std::stoi(game.substr(gameIdStartPosition, gameIdStopPosistion - gameIdStartPosition));
+}
+
+bool IsSetPossible(const std::string set)
+{
+    std::vector<std::string> colors;
+    StringHandling::SplitStringOnCharacter(set, colors, ',');
+
+    for(const std::string& color : colors)
     {
-        if(sourceChar == character)
+        const auto bluePosition = color.find(" blue");
+        if(bluePosition != color.npos)
         {
-            ++count;
+            const int amountOfBlue = std::stoi(color.substr(0, bluePosition));
+            if(amountOfBlue > 14)
+            { 
+                return false;
+            }
+        }
+
+        const auto redPosition = color.find(" red");
+        if(redPosition != color.npos)
+        {
+            const int amountOfRed = std::stoi(color.substr(0, redPosition));
+            if(amountOfRed > 12)
+            {
+                return false;
+            }
+        }
+
+        const auto greenPosition = color.find(" green");
+        if(greenPosition != color.npos)
+        {
+            const int amountOfGreen = std::stoi(color.substr(0, greenPosition));
+            if(amountOfGreen > 13)
+            {
+                return false;
+            }
         }
     }
 
-    return count;
+    return true;
+
+    // 12 red cubes, 13 green cubes, and 14 blue cubes
 }
-struct Policy
+
+bool IsGamePossible(const std::string& game)
 {
-    Policy(const int min, const int max, const char letter)
-    : minCount(min)
-    , maxCount(max)
-    , mLetter(letter)
-    {}
+    const std::string sets = game.substr(game.find(": ") + 2);
+    std::vector<std::string> gameSets;
+    StringHandling::SplitStringOnCharacter(sets, gameSets, ';');
 
-    const int minCount = 0;
-    const int maxCount = 0;
-    const char mLetter = 'a';
-};
-
-struct DatabaseItem
-{
-    DatabaseItem(Policy policy, const std::string password)
-    : mPolicy(policy)
-    , mPassword(password)
-    {}
-
-    // bool IsValid() const
-    // {
-    //     const auto numberOfCharsInString = GetNumberOfCharsInString(mPolicy.mLetter, mPassword);
-
-    //     return numberOfCharsInString >= mPolicy.minCount && numberOfCharsInString <= mPolicy.maxCount;
-    // }
-
-    bool IsValid() const
+    for(const auto& set : gameSets)
     {
-        const bool isFirstIndexCharacterEqual = (mPassword[mPolicy.minCount] == mPolicy.mLetter);
-        const bool isSecondIndexCharacterEqual = (mPassword[mPolicy.maxCount] == mPolicy.mLetter);
-
-        return (isFirstIndexCharacterEqual && !isSecondIndexCharacterEqual) || (!isFirstIndexCharacterEqual && isSecondIndexCharacterEqual);
+        if(!IsSetPossible(set))
+        {
+            return false;
+        }
     }
 
-    Policy mPolicy;
-    const std::string mPassword;
-};
+    return true;
+}
 
-
-std::vector<DatabaseItem> GetDatabaseItemsFromLines(const std::vector<std::string>& lines)
+int GetMinimumAmountOfCubesRequired(const std::string& game)
 {
-    std::vector<DatabaseItem> databaseItems;
-    for(const auto& line : lines)
-    {
-        const auto dashPosition = line.find("-");
-        const int min = std::stoi(line.substr(0, dashPosition));
-        const auto firstSpacePosition = line.find(" ");
-        const int max = std::stoi(line.substr(dashPosition+1, firstSpacePosition));
-        const auto colonPosition = line.find(":");
-        const char letter = line[colonPosition-1];
-        const std::string password = line.substr(colonPosition+1);
+    int minimumAmount = 0;
 
-        databaseItems.push_back({ { min, max, letter }, password });
+    const std::string sets = game.substr(game.find(": ") + 2);
+    std::vector<std::string> gameSets;
+    StringHandling::SplitStringOnCharacter(sets, gameSets, ';');
+
+    int minRed = 0;
+    int minGreen = 0;
+    int minBlue = 0;
+
+    for(const auto& set : gameSets)
+    {        
+        std::vector<std::string> colors;
+        StringHandling::SplitStringOnCharacter(set, colors, ',');
+
+        for(const std::string& color : colors)
+        {
+            const auto bluePosition = color.find(" blue");
+            if(bluePosition != color.npos)
+            {
+                const int amountOfBlue = std::stoi(color.substr(0, bluePosition));
+                if(amountOfBlue > minBlue)
+                {
+                    minBlue = amountOfBlue;
+                }
+            }
+
+            const auto redPosition = color.find(" red");
+            if(redPosition != color.npos)
+            {
+                const int amountOfRed = std::stoi(color.substr(0, redPosition));
+                if(amountOfRed > minRed)
+                {
+                    minRed = amountOfRed;
+                }
+            }
+
+            const auto greenPosition = color.find(" green");
+            if(greenPosition != color.npos)
+            {
+                const int amountOfGreen = std::stoi(color.substr(0, greenPosition));
+                if(amountOfGreen > minGreen)
+                {
+                    minGreen = amountOfGreen;
+                }
+            }
+        }
     }
 
-    return databaseItems;
+    minimumAmount = minRed * minGreen * minBlue;
+
+    return minimumAmount;
 }
 
 void FirstPart()
 {
     std::cout << "= First part =\n";
-    Utils::FileIo fileIo("C:/projects/AdventOfCode/build/input.txt");
+    Utils::FileIo fileIo("../input.txt");
     const std::vector<std::string> filePerLine = fileIo.GetFileContent();
 
-    std::vector<DatabaseItem> databaseItems = GetDatabaseItemsFromLines(filePerLine);
-    int count = 0;
-    for(const auto& dbItem : databaseItems)
+    int sumOfPossibleGames = 0;
+    for(const auto& line : filePerLine)
     {
-        if(dbItem.IsValid())
+        const int gameId = GetGameIdFromString(line);
+
+        if(IsGamePossible(line))
         {
-            std::cout << dbItem.mPassword << " is valid\n";
-            ++count;
+            sumOfPossibleGames += gameId;
         }
     }
 
-    std::cout << "\n\t" << count << " passwords are valid\n";
+    std::cout << "Sum of possible games: " << sumOfPossibleGames << "\n";
 }
 
 void SecondPart()
 {
     std::cout << "= Second part =\n";
     Utils::FileIo fileIo("../input.txt");
-    const auto filePerLine = fileIo.GetFileContent();
+    const std::vector<std::string> filePerLine = fileIo.GetFileContent();
 
-    std::vector<DatabaseItem> databaseItems = GetDatabaseItemsFromLines(filePerLine);
-    int count = 0;
-    for(const auto& dbItem : databaseItems)
+    int sumOfMinimum = 0;
+    for(const auto& line : filePerLine)
     {
-        if(dbItem.IsValid())
-        {
-            std::cout << dbItem.mPassword << " is valid\n";
-            ++count;
-        }
+        const int gameId = GetGameIdFromString(line);
+        const int minimum = GetMinimumAmountOfCubesRequired(line);
+
+        sumOfMinimum += minimum;
+        std::cout << gameId << ": " << minimum << "\n";
     }
 
-    std::cout << "\n\t" << count << " passwords are valid\n";
+    std::cout << "Sum of minimum: " << sumOfMinimum << "\n";
 }
 
 int main()
 {
     std::cout << "Advent of code main\n";
 
-    FirstPart();
-    // SecondPart();
+    // FirstPart();
+    SecondPart();
 
     return 0;
 }
