@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(sources
     src/Utils/FileIO.hpp
+    src/Utils/StringHandling.hpp
     src/main.cpp
 )
 

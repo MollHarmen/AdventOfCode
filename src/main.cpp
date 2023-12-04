@@ -1,157 +1,169 @@
-#include <algorithm>
-#include <array>
 #include <iostream>
-#include <sstream>
+#include <string>
 #include <vector>
-#include <tuple>
 
 #include "Utils/FileIO.hpp"
+#include "Utils/StringHandling.hpp"
 
-const std::array<std::string, 9> digits { "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"};
-const std::array<char, 9> numbers { '1','2','3','4','5','6','7','8','9' };
-
-std::tuple<std::string, size_t> FindFirstStringDigit(const std::string& line)
+bool IsSpecialCharacter(const char& character)
 {
-    size_t foundPosition = line.length();
-    std::string foundNumber;
-    for(const auto& digit : digits)
+    return (character != '.' && !isdigit(character));
+}
+
+int GetDigitStartIndexMinusOne(const int digitStartIndex)
+{
+    if(digitStartIndex > 0)
     {
-        const size_t position = line.find(digit);
-        if(position != line.npos)
+        return digitStartIndex - 1;
+    }
+
+    return digitStartIndex;
+}
+
+int GetDigitStopIndexPlusOne(const int digitStopIndex, const int max)
+{
+    if(digitStopIndex < (max-1))
+    {
+        return digitStopIndex + 1;
+    }
+
+    return digitStopIndex;
+}
+
+bool DoesStringContainSpecialCharacter(const std::string& input)
+{
+    for(const char& character : input)
+    {
+        if(IsSpecialCharacter(character))
         {
-            if (position < foundPosition)
-            {
-                foundPosition = position;
-                foundNumber = digit;
-            }
+            return true;
         }
     }
 
-    return { foundNumber, foundPosition };
+    return false;
 }
 
-std::tuple<std::string, size_t> FindLastStringDigit(const std::string& line)
+bool IsAdjacentToSpcialCharacter(const std::vector<std::string>& grid, const size_t lineIndex, const int digitStartIndex, const int digitStopIndex)
 {
-    size_t foundPosition = 0u;
-    std::string foundNumber;
-    for(const auto& digit : digits)
+    // Check line above for special character
+    if(lineIndex > 0u)
     {
-        const size_t position = line.rfind(digit);
-        if(position != line.npos)
+        const std::string& lineAbove = grid[lineIndex - 1];
+        const int start = GetDigitStartIndexMinusOne(digitStartIndex);
+        const int stop = GetDigitStopIndexPlusOne(digitStopIndex, lineAbove.length());
+        const std::string substring = lineAbove.substr(start, stop - start + 1);
+
+        const bool isValidNumber = DoesStringContainSpecialCharacter(substring);
+        if(isValidNumber)
         {
-            if (position > foundPosition)
-            {
-                foundPosition = position;
-                foundNumber = digit;
-            }
+            return true;
         }
     }
 
-    return { foundNumber, foundPosition };
-}
-
-std::tuple<unsigned, size_t> FindFirstDigit(const std::string& line)
-{
-    const auto firstDigitIterator = std::find_if(line.begin(), line.end(), [](const char& character){ return isdigit(character); });
-
-    if(firstDigitIterator != line.end())
+    // Check line below for special character
+    if(lineIndex < grid.size()-1)
     {
-        const unsigned number = std::find(numbers.begin(), numbers.end(), *firstDigitIterator) - numbers.begin();
-        return std::make_tuple(number, std::distance(line.begin(), firstDigitIterator));
+        const std::string& lineBelow = grid[lineIndex + 1];
+        const int start = GetDigitStartIndexMinusOne(digitStartIndex);
+        const int stop = GetDigitStopIndexPlusOne(digitStopIndex, lineBelow.length());
+        const std::string substring = lineBelow.substr(start, stop - start + 1);
+
+        const bool isValidNumber = DoesStringContainSpecialCharacter(substring);
+        if(isValidNumber)
+        {
+            return true;
+        }
     }
 
-    return { 0, line.length() };
-}
-
-std::tuple<unsigned, size_t> FindLastDigit(const std::string& line)
-{
-    const std::string::const_reverse_iterator lastDigitIterator = std::find_if(line.rbegin(), line.rend(), [](const char& character){ return isdigit(character); });
-
-    if(lastDigitIterator != line.rend())
+    // Check left and right column for adjacent special characters
+    const int leftColumnIndex = GetDigitStartIndexMinusOne(digitStartIndex);
+    const int rightColumnIndex = GetDigitStopIndexPlusOne(digitStopIndex, grid[lineIndex].size());
+    bool leftColumnHasSpecialCharacter = IsSpecialCharacter(grid[lineIndex][leftColumnIndex]);
+    bool rightColumnHasSpecialCharacter = IsSpecialCharacter(grid[lineIndex][rightColumnIndex]);
+    if(lineIndex > 0)
     {
-        const unsigned number = std::find(numbers.begin(), numbers.end(), *lastDigitIterator) - numbers.begin();
-        return std::make_tuple(number, std::distance(line.begin(), lastDigitIterator.base()) - 1);
+        leftColumnHasSpecialCharacter |= IsSpecialCharacter(grid[lineIndex-1][leftColumnIndex]);
+        rightColumnHasSpecialCharacter |= IsSpecialCharacter(grid[lineIndex-1][rightColumnIndex]);
     }
 
-    return { 0, 0 };
-}
-
-char GetFirstDigitFromLine(const std::string& line)
-{
-    const auto foundStringDigitTuple = FindFirstStringDigit(line);
-    const auto foundDigitTuple = FindFirstDigit(line);
-
-    if(std::get<1>(foundStringDigitTuple) < std::get<1>(foundDigitTuple))
+    if(lineIndex < grid.size()-1)
     {
-        const auto stringDigitIterator = std::find(digits.begin(), digits.end(), std::get<0>(foundStringDigitTuple));
-        const auto index = (stringDigitIterator - digits.begin());
-        return numbers[index];
-    }
-    else
-    {
-        return numbers[std::get<0>(foundDigitTuple)];
-    }
-}
-
-char GetLastDigitFromLine(const std::string& line)
-{
-    const auto foundStringDigitTuple = FindLastStringDigit(line);
-    const auto foundDigitTuple = FindLastDigit(line);
-
-    if(std::get<1>(foundStringDigitTuple) > std::get<1>(foundDigitTuple))
-    {
-        const auto stringDigitIterator = std::find(digits.begin(), digits.end(), std::get<0>(foundStringDigitTuple));
-        const auto index = (stringDigitIterator - digits.begin());
-        return numbers[index];
-    }
-    else
-    {
-        return numbers[std::get<0>(foundDigitTuple)];
+        leftColumnHasSpecialCharacter |= IsSpecialCharacter(grid[lineIndex+1][leftColumnIndex]);
+        rightColumnHasSpecialCharacter |= IsSpecialCharacter(grid[lineIndex+1][rightColumnIndex]);
     }
 
-    const std::string::const_reverse_iterator lastDigitIterator = std::find_if(line.rbegin(), line.rend(), [](const char& character){ return isdigit(character); });
-    return *lastDigitIterator;
-}
-
-unsigned AccumulateNumbersFromLines(const std::vector<std::string>& lines)
-{
-    unsigned accumulate = 0u;
-    for(const auto& line : lines)
-    {
-        std::stringstream ss;
-        ss << GetFirstDigitFromLine(line) << GetLastDigitFromLine(line);
-
-        const auto string = ss.str();
-        accumulate += std::stoi(string);
-    }
-
-    return accumulate;
+    return leftColumnHasSpecialCharacter | rightColumnHasSpecialCharacter;
 }
 
 void FirstPart()
 {
     std::cout << "= First part =\n";
-    Utils::FileIo fileIo("../input.txt");
+    Utils::FileIo fileIo("C:/projects/AdventOfCode/src/input.txt");
     const std::vector<std::string> filePerLine = fileIo.GetFileContent();
 
-    std::cout << AccumulateNumbersFromLines(filePerLine) << "\n";
+    int sumOfParts = 0;
+    for(size_t lineIndex = 0u; lineIndex != filePerLine.size(); ++lineIndex)
+    {
+        const auto& line = filePerLine[lineIndex];
+
+        int digitStartIndex = 0;
+        int digitStopIndex = 0;
+        bool foundNumber = false;
+        for(size_t index = 0; index != line.size(); ++index)
+        {
+            const char& character = line[index];
+            if(isdigit(character))
+            {
+                if (!foundNumber)
+                {
+                    digitStartIndex = index;
+                    foundNumber = true;
+                }
+            }
+            else
+            {
+                if(foundNumber)
+                {
+                    digitStopIndex = index-1;
+                    foundNumber = false;
+
+                    if(IsAdjacentToSpcialCharacter(filePerLine, lineIndex, digitStartIndex, digitStopIndex))
+                    {
+                        sumOfParts += std::stoi(line.substr(digitStartIndex, digitStopIndex - digitStartIndex + 1));
+                        std::cout << line.substr(digitStartIndex, digitStopIndex - digitStartIndex + 1) << "\n";
+                    }
+                }
+            }
+        }
+        if(foundNumber)
+        {
+            digitStopIndex = line.size() - 1;
+            foundNumber = false;
+
+            if(IsAdjacentToSpcialCharacter(filePerLine, lineIndex, digitStartIndex, digitStopIndex))
+            {
+                sumOfParts += std::stoi(line.substr(digitStartIndex, digitStopIndex - digitStartIndex + 1));
+                std::cout << line.substr(digitStartIndex, digitStopIndex - digitStartIndex + 1) << "\n";
+            }
+        }
+    }
+    std::cout << "Sum of parts: " << sumOfParts << "\n";
 }
 
 void SecondPart()
 {
     std::cout << "= Second part =\n";
-    Utils::FileIo fileIo("../input.txt");
-    const auto filePerLine = fileIo.GetFileContent();
+    Utils::FileIo fileIo("C:/projects/AdventOfCode/src/input.txt");
+    const std::vector<std::string> filePerLine = fileIo.GetFileContent();
 
-    std::cout << AccumulateNumbersFromLines(filePerLine) << "\n";
 }
 
 int main()
 {
     std::cout << "Advent of code main\n";
 
-    // FirstPart();
-    SecondPart();
+    FirstPart();
+    // SecondPart();
 
     return 0;
 }
