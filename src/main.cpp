@@ -1,98 +1,106 @@
+#include <array>
 #include <iostream>
+#include <map>
 #include <string>
 #include <vector>
 
 #include "Utils/FileIO.hpp"
 #include "Utils/StringHandling.hpp"
 
-bool IsSpecialCharacter(const char& character)
-{
-    return (character != '.' && !isdigit(character));
-}
+typedef unsigned long long NumberBase;
 
-int GetDigitStartIndexMinusOne(const int digitStartIndex)
+typedef std::vector<NumberBase> Seeds;
+typedef std::map<NumberBase, NumberBase> Map;
+typedef std::array<Map*, 7> Mappings;
+
+const std::string seedsKey = "seeds: ";
+const std::string seedToSoilKey = "seed-to-soil map:";
+const std::string soilToFertilizerKey = "soil-to-fertilizer map:";
+const std::string fertilzerToWaterKey = "fertilizer-to-water map:";
+const std::string waterToLightKey = "water-to-light map:";
+const std::string lightToTemperatureKey = "light-to-temperature map:";
+const std::string temperatureToHumidityKey = "temperature-to-humidity map:";
+const std::string humidityToLocationKey = "humidity-to-location map:";
+
+Seeds GetSeedsFromInput(const std::vector<std::string>& input)
 {
-    if(digitStartIndex > 0)
+    Seeds seeds;
+    for(const std::string& line : input)
     {
-        return digitStartIndex - 1;
-    }
-
-    return digitStartIndex;
-}
-
-int GetDigitStopIndexPlusOne(const int digitStopIndex, const int max)
-{
-    if(digitStopIndex < (max-1))
-    {
-        return digitStopIndex + 1;
-    }
-
-    return digitStopIndex;
-}
-
-bool DoesStringContainSpecialCharacter(const std::string& input)
-{
-    for(const char& character : input)
-    {
-        if(IsSpecialCharacter(character))
+        if(line.find(seedsKey) != line.npos)
         {
-            return true;
+            const std::string seedNumbers = line.substr(seedsKey.size(), line.size() - seedsKey.size());
+            std::cout << seedNumbers << "\n";
+            std::vector<std::string> seedsStrings;
+            StringHandling::SplitStringOnCharacter(seedNumbers, seedsStrings, ' ');
+            for(const auto& seed : seedsStrings)
+            {
+                seeds.push_back(static_cast<Seeds::value_type>(std::stoull(seed)));
+            }
         }
     }
 
-    return false;
+    return seeds;
 }
 
-bool IsAdjacentToSpcialCharacter(const std::vector<std::string>& grid, const size_t lineIndex, const int digitStartIndex, const int digitStopIndex)
+void AddRangeToMap(Map& map, const std::string& input)
 {
-    // Check line above for special character
-    if(lineIndex > 0u)
-    {
-        const std::string& lineAbove = grid[lineIndex - 1];
-        const int start = GetDigitStartIndexMinusOne(digitStartIndex);
-        const int stop = GetDigitStopIndexPlusOne(digitStopIndex, lineAbove.length());
-        const std::string substring = lineAbove.substr(start, stop - start + 1);
+    std::vector<std::string> splittedInputLine;
+    StringHandling::SplitStringOnCharacter(input, splittedInputLine, ' ');
+    NumberBase destination = std::stoull(splittedInputLine[0]);
+    NumberBase source = std::stoull(splittedInputLine[1]);
+    const NumberBase range = std::stoull(splittedInputLine[2]);
 
-        const bool isValidNumber = DoesStringContainSpecialCharacter(substring);
-        if(isValidNumber)
+    const NumberBase expectedMapSize = map.size() + range;
+    while(map.size() != expectedMapSize)
+    {
+        map.insert(std::make_pair(destination, source));
+        ++destination;
+        ++source;
+    }
+}
+
+Map GetMappingFromKey(const std::vector<std::string>& input, const std::string key)
+{
+    Map map;
+    for(auto inputIterator = input.begin(); inputIterator != input.end(); ++inputIterator)
+    {
+        const auto& line = *inputIterator;
+        if(line.find(key) != line.npos)
         {
-            return true;
+            ++inputIterator;
+            while (inputIterator != input.end() && !(*inputIterator).empty())
+            {
+                AddRangeToMap(map, *inputIterator);
+                ++inputIterator;
+            }
+            return map;
         }
     }
 
-    // Check line below for special character
-    if(lineIndex < grid.size()-1)
-    {
-        const std::string& lineBelow = grid[lineIndex + 1];
-        const int start = GetDigitStartIndexMinusOne(digitStartIndex);
-        const int stop = GetDigitStopIndexPlusOne(digitStopIndex, lineBelow.length());
-        const std::string substring = lineBelow.substr(start, stop - start + 1);
+    return map;
+}
 
-        const bool isValidNumber = DoesStringContainSpecialCharacter(substring);
-        if(isValidNumber)
-        {
-            return true;
-        }
+NumberBase GetMappedValueFromSource(const Map& map, const NumberBase& source)
+{
+    const auto mapIterator = std::find_if(map.begin(), map.end(), [&source](const auto& item){ return item.second == source;});
+    if(mapIterator != map.end())
+    {
+        return mapIterator->first;
     }
 
-    // Check left and right column for adjacent special characters
-    const int leftColumnIndex = GetDigitStartIndexMinusOne(digitStartIndex);
-    const int rightColumnIndex = GetDigitStopIndexPlusOne(digitStopIndex, grid[lineIndex].size());
-    bool leftColumnHasSpecialCharacter = IsSpecialCharacter(grid[lineIndex][leftColumnIndex]);
-    bool rightColumnHasSpecialCharacter = IsSpecialCharacter(grid[lineIndex][rightColumnIndex]);
-    if(lineIndex > 0)
+    return source; // source value is not in map, return source as destiny.
+}
+
+NumberBase GetLocation(const Mappings& mappings, const NumberBase& source)
+{
+    NumberBase result = source;
+    for(const Map* map : mappings)
     {
-        leftColumnHasSpecialCharacter |= IsSpecialCharacter(grid[lineIndex-1][leftColumnIndex]);
-        rightColumnHasSpecialCharacter |= IsSpecialCharacter(grid[lineIndex-1][rightColumnIndex]);
+        result = GetMappedValueFromSource(*map, result);
     }
 
-    if(lineIndex < grid.size()-1)
-    {
-        leftColumnHasSpecialCharacter |= IsSpecialCharacter(grid[lineIndex+1][leftColumnIndex]);
-        rightColumnHasSpecialCharacter |= IsSpecialCharacter(grid[lineIndex+1][rightColumnIndex]);
-    }
-
-    return leftColumnHasSpecialCharacter | rightColumnHasSpecialCharacter;
+    return result;
 }
 
 void FirstPart()
@@ -101,53 +109,21 @@ void FirstPart()
     Utils::FileIo fileIo("C:/projects/AdventOfCode/src/input.txt");
     const std::vector<std::string> filePerLine = fileIo.GetFileContent();
 
-    int sumOfParts = 0;
-    for(size_t lineIndex = 0u; lineIndex != filePerLine.size(); ++lineIndex)
+    Seeds seeds = GetSeedsFromInput(filePerLine);
+    Map seedToSoilMap = GetMappingFromKey(filePerLine, seedToSoilKey);
+    Map soilToFertilizerMap = GetMappingFromKey(filePerLine, soilToFertilizerKey);
+    Map fertilzerToWaterMap = GetMappingFromKey(filePerLine, fertilzerToWaterKey);
+    Map waterToLightMap = GetMappingFromKey(filePerLine, waterToLightKey);
+    Map lightToTemperatureMap = GetMappingFromKey(filePerLine, lightToTemperatureKey);
+    Map temperatureToHumidityMap = GetMappingFromKey(filePerLine, temperatureToHumidityKey);
+    Map humidityToLocationMap = GetMappingFromKey(filePerLine, humidityToLocationKey);
+
+    const Mappings maps { &seedToSoilMap, &soilToFertilizerMap, &fertilzerToWaterMap, &waterToLightMap, &lightToTemperatureMap, &temperatureToHumidityMap, &humidityToLocationMap };
+    
+    for(const auto& seed : seeds)
     {
-        const auto& line = filePerLine[lineIndex];
-
-        int digitStartIndex = 0;
-        int digitStopIndex = 0;
-        bool foundNumber = false;
-        for(size_t index = 0; index != line.size(); ++index)
-        {
-            const char& character = line[index];
-            if(isdigit(character))
-            {
-                if (!foundNumber)
-                {
-                    digitStartIndex = index;
-                    foundNumber = true;
-                }
-            }
-            else
-            {
-                if(foundNumber)
-                {
-                    digitStopIndex = index-1;
-                    foundNumber = false;
-
-                    if(IsAdjacentToSpcialCharacter(filePerLine, lineIndex, digitStartIndex, digitStopIndex))
-                    {
-                        sumOfParts += std::stoi(line.substr(digitStartIndex, digitStopIndex - digitStartIndex + 1));
-                        std::cout << line.substr(digitStartIndex, digitStopIndex - digitStartIndex + 1) << "\n";
-                    }
-                }
-            }
-        }
-        if(foundNumber)
-        {
-            digitStopIndex = line.size() - 1;
-            foundNumber = false;
-
-            if(IsAdjacentToSpcialCharacter(filePerLine, lineIndex, digitStartIndex, digitStopIndex))
-            {
-                sumOfParts += std::stoi(line.substr(digitStartIndex, digitStopIndex - digitStartIndex + 1));
-                std::cout << line.substr(digitStartIndex, digitStopIndex - digitStartIndex + 1) << "\n";
-            }
-        }
+        std::cout << GetLocation(maps, seed) << "\n";
     }
-    std::cout << "Sum of parts: " << sumOfParts << "\n";
 }
 
 void SecondPart()
