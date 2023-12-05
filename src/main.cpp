@@ -72,6 +72,37 @@ Seeds GetSeedsFromInput(const std::vector<std::string>& input)
     return seeds;
 }
 
+void AddSeedsInRange(Seeds& seeds, const NumberBase& start, const NumberBase& range)
+{
+    for (NumberBase seedNumber = start; seedNumber != (start + (range - 1)); ++seedNumber)
+    {
+        seeds.push_back(seedNumber);
+    }
+}
+
+Seeds GetSeedRangesFromInput(const std::vector<std::string>& input)
+{
+    Seeds seeds;
+    for(const std::string& line : input)
+    {
+        if(line.find(seedsKey) != line.npos)
+        {
+            const std::string seedNumbers = line.substr(seedsKey.size(), line.size() - seedsKey.size());
+            std::vector<std::string> seedsStrings;
+            StringHandling::SplitStringOnCharacter(seedNumbers, seedsStrings, ' ');
+
+            for(auto iterator = seedsStrings.begin(); iterator != seedsStrings.end(); iterator+=2)
+            {
+                AddSeedsInRange(seeds, std::stoull(*iterator), std::stoull(*(iterator+1)));
+                AddSeedsInRange(seeds, std::stoull(*iterator), std::stoull(*(iterator+1)));
+
+            }
+        }
+    }
+
+    return seeds;
+}
+
 void AddRangeToMap(Map& map, const std::string& input)
 {
     std::vector<std::string> splittedInputLine;
@@ -160,14 +191,32 @@ void SecondPart()
     Utils::FileIo fileIo("C:/projects/AdventOfCode/src/input.txt");
     const std::vector<std::string> filePerLine = fileIo.GetFileContent();
 
+    Seeds seeds = GetSeedRangesFromInput(filePerLine);
+    Map seedToSoilMap = GetMappingFromKey(filePerLine, seedToSoilKey);
+    Map soilToFertilizerMap = GetMappingFromKey(filePerLine, soilToFertilizerKey);
+    Map fertilzerToWaterMap = GetMappingFromKey(filePerLine, fertilzerToWaterKey);
+    Map waterToLightMap = GetMappingFromKey(filePerLine, waterToLightKey);
+    Map lightToTemperatureMap = GetMappingFromKey(filePerLine, lightToTemperatureKey);
+    Map temperatureToHumidityMap = GetMappingFromKey(filePerLine, temperatureToHumidityKey);
+    Map humidityToLocationMap = GetMappingFromKey(filePerLine, humidityToLocationKey);
+
+    const Mappings maps { &seedToSoilMap, &soilToFertilizerMap, &fertilzerToWaterMap, &waterToLightMap, &lightToTemperatureMap, &temperatureToHumidityMap, &humidityToLocationMap };
+    
+    std::vector<NumberBase> results;
+    for(const auto& seed : seeds)
+    {
+        results.push_back(GetLocation(maps, seed));
+    }
+
+    std::cout << "Lowest location number: " << *std::min_element(results.begin(), results.end()) << "\n";
 }
 
 int main()
 {
     std::cout << "Advent of code main\n";
 
-    FirstPart();
-    // SecondPart();
+    // FirstPart();
+    SecondPart();
 
     return 0;
 }
