@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <iostream>
 #include <map>
@@ -9,8 +10,36 @@
 
 typedef unsigned long long NumberBase;
 
+struct Mapping
+{
+    const NumberBase mDestination;
+    const NumberBase mSource;
+    const NumberBase mRange;
+    const NumberBase mMax;
+    const long long mDiff;
+
+    Mapping(NumberBase destination, NumberBase source, NumberBase range)
+    : mDestination(destination)
+    , mSource(source)
+    , mRange(range)
+    , mMax(source + (range-1))
+    , mDiff(destination - source)
+    {
+    }
+
+    bool IsInRange(const NumberBase& source) const
+    {
+        return source >= mSource && source <= mMax;
+    }
+
+    NumberBase GetDestination(const NumberBase& source) const
+    {
+        return source + mDiff;
+    }
+};
+
 typedef std::vector<NumberBase> Seeds;
-typedef std::map<NumberBase, NumberBase> Map;
+typedef std::vector<Mapping> Map;
 typedef std::array<Map*, 7> Mappings;
 
 const std::string seedsKey = "seeds: ";
@@ -51,13 +80,7 @@ void AddRangeToMap(Map& map, const std::string& input)
     NumberBase source = std::stoull(splittedInputLine[1]);
     const NumberBase range = std::stoull(splittedInputLine[2]);
 
-    const NumberBase expectedMapSize = map.size() + range;
-    while(map.size() != expectedMapSize)
-    {
-        map.insert(std::make_pair(destination, source));
-        ++destination;
-        ++source;
-    }
+    map.push_back({destination, source, range});
 }
 
 Map GetMappingFromKey(const std::vector<std::string>& input, const std::string key)
@@ -83,10 +106,12 @@ Map GetMappingFromKey(const std::vector<std::string>& input, const std::string k
 
 NumberBase GetMappedValueFromSource(const Map& map, const NumberBase& source)
 {
-    const auto mapIterator = std::find_if(map.begin(), map.end(), [&source](const auto& item){ return item.second == source;});
-    if(mapIterator != map.end())
+    for(const auto& mapping : map)
     {
-        return mapIterator->first;
+        if(mapping.IsInRange(source))
+        {
+            return mapping.GetDestination(source);
+        }
     }
 
     return source; // source value is not in map, return source as destiny.
@@ -120,10 +145,13 @@ void FirstPart()
 
     const Mappings maps { &seedToSoilMap, &soilToFertilizerMap, &fertilzerToWaterMap, &waterToLightMap, &lightToTemperatureMap, &temperatureToHumidityMap, &humidityToLocationMap };
     
+    std::vector<NumberBase> results;
     for(const auto& seed : seeds)
     {
-        std::cout << GetLocation(maps, seed) << "\n";
+        results.push_back(GetLocation(maps, seed));
     }
+
+    std::cout << "Lowest location number: " << *std::min_element(results.begin(), results.end()) << "\n";
 }
 
 void SecondPart()
