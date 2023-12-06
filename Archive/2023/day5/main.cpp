@@ -11,6 +11,17 @@
 
 typedef unsigned long long NumberBase;
 
+struct Seed
+{
+    Seed(const NumberBase& start, const NumberBase& range)
+    : mStart(start)
+    , mRange(range)
+    {}
+
+    NumberBase mStart;
+    NumberBase mRange;
+};
+
 struct Mapping
 {
     const NumberBase mDestination;
@@ -37,55 +48,11 @@ struct Mapping
     {
         return source + mDiff;
     }
-
-    NumberBase GetUpperBound() const
-    {
-        return mMax;
-    }
-
-    NumberBase GetLowerBound() const
-    {
-        return mSource;
-    }
 };
 
-
-typedef std::vector<NumberBase> Seeds;
+typedef std::vector<Seed> Seeds;
 typedef std::vector<Mapping> Map;
 typedef std::array<Map*, 7> Mappings;
-
-struct MapCollection
-{
-    MapCollection(Map map)
-    : mMappings(map)
-    // , mLowerBound()
-    // , mUpperBound()
-    {
-    }
-
-    void Stuff()
-    {
-        NumberBase highestUpper = 0;
-        NumberBase lowestLower = std::numeric_limits<NumberBase>::max();
-
-        for(const Mapping& map : mMappings)
-        {
-            const auto upper = map.GetUpperBound();
-            if(upper > highestUpper)
-            {
-                highestUpper = upper;
-            }
-
-            const auto lower = map.GetLowerBound();
-            if(lower < lowestLower)
-            {
-                lowestLower = lower;
-            }
-        }
-    }
-
-    Map mMappings;
-};
 
 const std::string seedsKey = "seeds: ";
 const std::string seedToSoilKey = "seed-to-soil map:";
@@ -95,35 +62,6 @@ const std::string waterToLightKey = "water-to-light map:";
 const std::string lightToTemperatureKey = "light-to-temperature map:";
 const std::string temperatureToHumidityKey = "temperature-to-humidity map:";
 const std::string humidityToLocationKey = "humidity-to-location map:";
-
-Seeds GetSeedsFromInput(const std::vector<std::string>& input)
-{
-    Seeds seeds;
-    for(const std::string& line : input)
-    {
-        if(line.find(seedsKey) != line.npos)
-        {
-            const std::string seedNumbers = line.substr(seedsKey.size(), line.size() - seedsKey.size());
-            std::cout << seedNumbers << "\n";
-            std::vector<std::string> seedsStrings;
-            StringHandling::SplitStringOnCharacter(seedNumbers, seedsStrings, ' ');
-            for(const auto& seed : seedsStrings)
-            {
-                seeds.push_back(static_cast<Seeds::value_type>(std::stoull(seed)));
-            }
-        }
-    }
-
-    return seeds;
-}
-
-void AddSeedsInRange(Seeds& seeds, const NumberBase& start, const NumberBase& range)
-{
-    for (NumberBase seedNumber = start; seedNumber != (start + (range - 1)); ++seedNumber)
-    {
-        seeds.push_back(seedNumber);
-    }
-}
 
 Seeds GetSeedRangesFromInput(const std::vector<std::string>& input)
 {
@@ -138,9 +76,7 @@ Seeds GetSeedRangesFromInput(const std::vector<std::string>& input)
 
             for(auto iterator = seedsStrings.begin(); iterator != seedsStrings.end(); iterator+=2)
             {
-                AddSeedsInRange(seeds, std::stoull(*iterator), std::stoull(*(iterator+1)));
-                AddSeedsInRange(seeds, std::stoull(*iterator), std::stoull(*(iterator+1)));
-
+                seeds.push_back({std::stoull(*iterator), std::stoull(*(iterator+1))});
             }
         }
     }
@@ -209,25 +145,6 @@ void FirstPart()
     std::cout << "= First part =\n";
     Utils::FileIo fileIo("C:/projects/AdventOfCode/src/input.txt");
     const std::vector<std::string> filePerLine = fileIo.GetFileContent();
-
-    Seeds seeds = GetSeedsFromInput(filePerLine);
-    Map seedToSoilMap = GetMappingFromKey(filePerLine, seedToSoilKey);
-    Map soilToFertilizerMap = GetMappingFromKey(filePerLine, soilToFertilizerKey);
-    Map fertilzerToWaterMap = GetMappingFromKey(filePerLine, fertilzerToWaterKey);
-    Map waterToLightMap = GetMappingFromKey(filePerLine, waterToLightKey);
-    Map lightToTemperatureMap = GetMappingFromKey(filePerLine, lightToTemperatureKey);
-    Map temperatureToHumidityMap = GetMappingFromKey(filePerLine, temperatureToHumidityKey);
-    Map humidityToLocationMap = GetMappingFromKey(filePerLine, humidityToLocationKey);
-
-    const Mappings maps { &seedToSoilMap, &soilToFertilizerMap, &fertilzerToWaterMap, &waterToLightMap, &lightToTemperatureMap, &temperatureToHumidityMap, &humidityToLocationMap };
-    
-    std::vector<NumberBase> results;
-    for(const auto& seed : seeds)
-    {
-        results.push_back(GetLocation(maps, seed));
-    }
-
-    std::cout << "Lowest location number: " << *std::min_element(results.begin(), results.end()) << "\n";
 }
 
 void SecondPart()
@@ -247,13 +164,43 @@ void SecondPart()
 
     const Mappings maps { &seedToSoilMap, &soilToFertilizerMap, &fertilzerToWaterMap, &waterToLightMap, &lightToTemperatureMap, &temperatureToHumidityMap, &humidityToLocationMap };
     
-    std::vector<NumberBase> results;
+    NumberBase lowestLocation = std::numeric_limits<NumberBase>::max();
+    NumberBase lowestSeedNumber = 0;
     for(const auto& seed : seeds)
     {
-        results.push_back(GetLocation(maps, seed));
+        for(NumberBase currentSeedNumber = seed.mStart; currentSeedNumber < seed.mStart + (seed.mRange -1); currentSeedNumber+=1000)
+        {
+            const auto result = GetLocation(maps, currentSeedNumber);
+            if(result < lowestLocation)
+            {
+                lowestLocation = result;
+                lowestSeedNumber = currentSeedNumber;
+                std::cout << ".";
+            }
+        }
     }
 
-    std::cout << "Lowest location number: " << *std::min_element(results.begin(), results.end()) << "\n";
+    std::cout << std::endl;
+
+    std::cout << "Lowest 1000ths location number: " << lowestLocation << " from seed: " << lowestSeedNumber << "\n";
+
+    for(NumberBase currentSeedNumber = lowestSeedNumber - 5000; currentSeedNumber < lowestSeedNumber + 5000; ++currentSeedNumber)
+    {
+        const auto result = GetLocation(maps, currentSeedNumber);
+        if(result < lowestLocation)
+        {
+            lowestLocation = result;
+            lowestSeedNumber = currentSeedNumber;
+        }
+
+        if(currentSeedNumber % 100 == 0)
+        {
+            std::cout << currentSeedNumber << "\n";
+        }
+    }
+    std::cout << std::endl;
+
+    std::cout << "Lowest location number: " << lowestLocation << " from seed: " << lowestSeedNumber << "\n";
 }
 
 int main()
