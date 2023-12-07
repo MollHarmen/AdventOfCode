@@ -16,21 +16,35 @@ struct
 } cardCompare;
 
 const std::vector<char> patternChars {'X', 'Y', 'Z', 'A', 'B'};
+const std::string patternString(patternChars.rbegin(), patternChars.rend());
 
-
+bool CompareCharacterValuesOfString(const std::string& left, const std::string& right, const std::string& characterValues)
+{
+    for(size_t compareIndex = 0; compareIndex != left.size(); ++compareIndex)
+    {
+        if (characterValues.find(left[compareIndex]) != characterValues.find(right[compareIndex]))
+        {
+            const auto leftValue = characterValues.find(left[compareIndex]);
+            const auto rightValue = characterValues.find(right[compareIndex]);
+            return leftValue < rightValue;
+        }
+    }
+    return false;
+}
 
 struct Hand
 {
     std::vector<char> mHand;
-    const int mBid;
-    const std::string mPattern;
+    std::vector<char> mSortedHand;
+    int mBid;
+    std::string mPattern;
 
     Hand(std::vector<char> hand, const int bid)
     : mHand(hand)
+    , mSortedHand(hand)
     , mBid(bid)
-    , mPattern(GetHandPattern())
     {
-        std::sort(mHand.begin(), mHand.end(), [&hand](const char& left, const char& right)
+        std::sort(mSortedHand.begin(), mSortedHand.end(), [&hand](const char& left, const char& right)
         {
             if(std::count(hand.begin(), hand.end(), left) == std::count(hand.begin(), hand.end(), right))
             {
@@ -39,21 +53,23 @@ struct Hand
 
             return std::count(hand.begin(), hand.end(), left) > std::count(hand.begin(), hand.end(), right);
         });
+
+        mPattern = GetHandPattern();
     }
     
     void Print() const
     {
         const std::string hand(mHand.begin(), mHand.end());
-        std::cout << hand << " " << mPattern << " " << mBid << "\n";
+        std::cout << hand << " " << mPattern << " " << mBid;
     }
 
     std::string GetHandPattern() const
     {
-        char previousChar = *mHand.begin();
+        char previousChar = *mSortedHand.begin();
         size_t patternCharacterIndex = 0;
         std::stringstream pattern;
 
-        for(auto cardIterator = mHand.begin(); cardIterator != mHand.end(); ++cardIterator)
+        for(auto cardIterator = mSortedHand.begin(); cardIterator != mSortedHand.end(); ++cardIterator)
         {
             if(*cardIterator == previousChar)
             {
@@ -73,12 +89,29 @@ struct Hand
     {
         return mHand[0];
     }
-
-    bool operator<(const Hand& other)
-    {
-        return mPattern < other.mPattern;
-    }
 };
+
+struct 
+{
+    bool operator()(const Hand& left, const Hand& right) const
+    {
+        if(left.mPattern == right.mPattern)
+        {
+            for(size_t compareIndex = 0; compareIndex != left.mHand.size(); ++compareIndex)
+            {
+                const auto leftValue = CharacterValueOrder.find(left.mHand[compareIndex]);
+                const auto rightValue = CharacterValueOrder.find(right.mHand[compareIndex]);
+                if(leftValue != rightValue)
+                {
+                    return (leftValue < rightValue);
+                }
+            }
+            return false;
+        }
+
+        return CompareCharacterValuesOfString(left.mPattern, right.mPattern, patternString);
+    }
+} handCompare;
 
 typedef std::vector<Hand> Hands;
 
@@ -112,6 +145,22 @@ Hands GetHandsFromInput(const std::vector<std::string>& input)
     return hands;
 }
 
+unsigned long long CalculateValue(const Hands& hands)
+{
+    int multiplier = 1;
+    unsigned long long value = 0;
+    for(const auto& hand : hands)
+    {
+        value += (multiplier * hand.mBid);
+        
+        hand.Print();
+        std::cout << " - \t" << hand.mBid << " * " << multiplier << " - \t" << value << "\n";
+        
+        ++multiplier;
+    }
+
+    return value;
+}
 
 void FirstPart()
 {
@@ -120,12 +169,11 @@ void FirstPart()
     const std::vector<std::string> filePerLine = fileIo.GetFileContent();
     
     Hands hands = GetHandsFromInput(filePerLine);
-    for(const auto& hand : hands)
-    {
-        hand.Print();
-    }
-    // std::sort(hands.begin(), hands.end(), cardCompare);
+    std::sort(hands.begin(), hands.end(), handCompare);
+
+    std::cout << "Value of hands: \n" << CalculateValue(hands) << "\n";
 }
+
 void SecondPart()
 {
     std::cout << "= Second part =\n";
