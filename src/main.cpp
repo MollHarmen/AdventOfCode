@@ -6,7 +6,7 @@
 #include "Utils/FileIO.hpp"
 #include "Utils/StringHandling.hpp"
 
-const std::string CharacterValueOrder = "23456789TJQKA";
+const std::string CharacterValueOrder = "J23456789TQKA";
 struct
 {
     bool operator()(const char& left, const char& right) const 
@@ -71,15 +71,25 @@ struct Hand
 
         for(auto cardIterator = mSortedHand.begin(); cardIterator != mSortedHand.end(); ++cardIterator)
         {
-            if(*cardIterator == previousChar)
+            if(*cardIterator != 'J')
             {
-                pattern << patternChars[patternCharacterIndex];
+                if(*cardIterator == previousChar)
+                {
+                    pattern << patternChars[patternCharacterIndex];
+                }
+                else
+                {
+                    pattern << patternChars[++patternCharacterIndex];
+                }
+                previousChar = *cardIterator;
             }
             else
             {
-                pattern << patternChars[++patternCharacterIndex];
+                std::string patternCoppy = pattern.str();
+                pattern.seekp(0);
+                pattern << patternChars[0];
+                pattern << patternCoppy;
             }
-            previousChar = *cardIterator;
         }
 
         return pattern.str();
