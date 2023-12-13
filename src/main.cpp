@@ -1,175 +1,160 @@
-#include <algorithm>
 #include <iostream>
-#include <sstream>
-#include <vector>
 
 #include "Utils/FileIO.hpp"
 #include "Utils/StringHandling.hpp"
 
-const std::string CharacterValueOrder = "J23456789TQKA";
-struct
-{
-    bool operator()(const char& left, const char& right) const 
-    {
-        return CharacterValueOrder.find(left) > CharacterValueOrder.find(right); 
-    }
-} cardCompare;
+typedef std::vector<int> Groups;
 
-const std::vector<char> patternChars {'X', 'Y', 'Z', 'A', 'B'};
-const std::string patternString(patternChars.rbegin(), patternChars.rend());
-
-bool CompareCharacterValuesOfString(const std::string& left, const std::string& right, const std::string& characterValues)
+Groups GetGroupsFromString(const std::string& input)
 {
-    for(size_t compareIndex = 0; compareIndex != left.size(); ++compareIndex)
+    std::vector<std::string> split;
+    StringHandling::SplitStringOnCharacter(input, split, ',');
+
+    Groups groups;
+    for(const auto& group : split)
     {
-        if (characterValues.find(left[compareIndex]) != characterValues.find(right[compareIndex]))
-        {
-            const auto leftValue = characterValues.find(left[compareIndex]);
-            const auto rightValue = characterValues.find(right[compareIndex]);
-            return leftValue < rightValue;
-        }
+        groups.push_back(std::stoi(group));
     }
-    return false;
+
+    return groups;
 }
 
-struct Hand
+bool DoesGroupFit(const std::string& report, const int groupSize, const size_t position)
 {
-    std::vector<char> mHand;
-    std::vector<char> mSortedHand;
-    int mBid;
-    std::string mPattern;
-
-    Hand(std::vector<char> hand, const int bid)
-    : mHand(hand)
-    , mSortedHand(hand)
-    , mBid(bid)
+    const size_t groupEndPosition = position + groupSize;
+    if (groupEndPosition > report.length())
     {
-        std::sort(mSortedHand.begin(), mSortedHand.end(), [&hand](const char& left, const char& right)
+        return false;
+    }
+
+    for (size_t index = position; index != groupEndPosition; ++index)
+    {
+        if(report[index] == '.')
         {
-            if(std::count(hand.begin(), hand.end(), left) == std::count(hand.begin(), hand.end(), right))
+            return false;
+        }
+    }
+
+    if (groupEndPosition < report.length())
+    {
+        if (report[groupEndPosition] == '#') // Group would be too large
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+std::string ReplaceInString(const std::string& input, const size_t position, const int groupSize)
+{
+    std::string output = input;
+    const size_t groupEndPosition = position + groupSize;
+    for(size_t index = position; index != groupEndPosition; ++index)
+    {
+        output[index] = '#';
+    }
+
+    if(groupEndPosition < input.length())
+    {
+        output[groupEndPosition] = '.';
+    }
+
+    return output;
+}
+
+bool IsGroup(const std::string& input, const size_t position, const int groupSize)
+{
+    const size_t groupEndPosition = position + groupSize;
+    if (groupEndPosition > input.length())
+    {
+        return false;
+    }
+
+    for (size_t index = position; index != groupEndPosition; ++index)
+    {
+        if (input[index] != '#')
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+Groups RemoveFirstElement(const Groups& groups)
+{
+    Groups groupsCopy = groups;
+    groupsCopy.erase(groupsCopy.begin());
+
+    return groupsCopy;
+}
+
+int GetNumberOfPossibilities(std::string conditionReport, Groups groups, const size_t position = 0u)
+{
+    int result = 0;
+    for (size_t index = position; index < conditionReport.length(); ++index)
+    {
+        const char& spring = conditionReport[index];
+        if(spring == '?')
+        {
+            if(!groups.empty() && DoesGroupFit(conditionReport, groups[0], index))
             {
-                return CharacterValueOrder.find(left) > CharacterValueOrder.find(right);
+                const std::string replacedReport = ReplaceInString(conditionReport, index, groups[0]);
+                Groups groupsCopy = RemoveFirstElement(groups);
+
+                if (groupsCopy.empty())
+                {
+                    // std::cout << "Found: " << replacedReport << "\n";
+                    result += 1;
+                }
+
+                result += GetNumberOfPossibilities(replacedReport, groupsCopy, index + groups[0]);
             }
 
-            return std::count(hand.begin(), hand.end(), left) > std::count(hand.begin(), hand.end(), right);
-        });
-
-        mPattern = GetHandPattern();
-    }
-    
-    void Print() const
-    {
-        const std::string hand(mHand.begin(), mHand.end());
-        std::cout << hand << " " << mPattern << " " << mBid;
-    }
-
-    std::string GetHandPattern() const
-    {
-        char previousChar = *mSortedHand.begin();
-        size_t patternCharacterIndex = 0;
-        std::stringstream pattern;
-
-        for(auto cardIterator = mSortedHand.begin(); cardIterator != mSortedHand.end(); ++cardIterator)
+            conditionReport[index] = '.';
+            // result += GetNumberOfPossibilities(conditionReport, groups, index);
+        }
+        else if(spring == '#')
         {
-            if(*cardIterator != 'J')
+            if (!groups.empty() && IsGroup(conditionReport, index, groups[0]))
             {
-                if(*cardIterator == previousChar)
+                if(index + groups[0] < conditionReport.length() && conditionReport[index + groups[0]] == '?')
                 {
-                    pattern << patternChars[patternCharacterIndex];
+                    conditionReport[index + groups[0]] = '.';
                 }
-                else
+
+                index += groups[0];
+                groups = RemoveFirstElement(groups);
+
+                if (groups.empty())
                 {
-                    pattern << patternChars[++patternCharacterIndex];
+                    // std::cout << "Found: " << conditionReport << "\n";
+                    result += 1;
                 }
-                previousChar = *cardIterator;
+            }
+            else if(!groups.empty() && DoesGroupFit(conditionReport, groups[0], index))
+            {
+                const std::string replacedReport = ReplaceInString(conditionReport, index, groups[0]);
+                Groups groupsCopy = RemoveFirstElement(groups);
+
+                if (groupsCopy.empty())
+                {
+                    // std::cout << "Found: " << replacedReport << "\n";
+                    result += 1;
+                }
+
+                result += GetNumberOfPossibilities(replacedReport, groupsCopy, index + groups[0]);
             }
             else
             {
-                std::string patternCoppy = pattern.str();
-                pattern.seekp(0);
-                pattern << patternChars[0];
-                pattern << patternCoppy;
+                // Not posible, return 0
+                return result;
             }
         }
-
-        return pattern.str();
     }
 
-    char GetHighestCard()
-    {
-        return mHand[0];
-    }
-};
-
-struct 
-{
-    bool operator()(const Hand& left, const Hand& right) const
-    {
-        if(left.mPattern == right.mPattern)
-        {
-            for(size_t compareIndex = 0; compareIndex != left.mHand.size(); ++compareIndex)
-            {
-                const auto leftValue = CharacterValueOrder.find(left.mHand[compareIndex]);
-                const auto rightValue = CharacterValueOrder.find(right.mHand[compareIndex]);
-                if(leftValue != rightValue)
-                {
-                    return (leftValue < rightValue);
-                }
-            }
-            return false;
-        }
-
-        return CompareCharacterValuesOfString(left.mPattern, right.mPattern, patternString);
-    }
-} handCompare;
-
-typedef std::vector<Hand> Hands;
-
-std::vector<char> SplitStringIntoChars(const std::string& input)
-{
-    std::vector<char> characters;
-    for(const auto& character : input)
-    {
-        characters.push_back(character);
-    }
-
-    return characters;
-}
-
-Hand GetHandFromLine(const std::string& line)
-{
-    std::vector<std::string> split;
-    StringHandling::SplitStringOnCharacter(line, split, ' ');
-
-    return {SplitStringIntoChars(split[0]), std::stoi(split[1])};
-}
-
-Hands GetHandsFromInput(const std::vector<std::string>& input)
-{
-    Hands hands;
-    for(const auto& line : input)
-    {
-        hands.push_back(GetHandFromLine(line));
-    }
-
-    return hands;
-}
-
-unsigned long long CalculateValue(const Hands& hands)
-{
-    int multiplier = 1;
-    unsigned long long value = 0;
-    for(const auto& hand : hands)
-    {
-        value += (multiplier * hand.mBid);
-        
-        hand.Print();
-        std::cout << " - \t" << hand.mBid << " * " << multiplier << " - \t" << value << "\n";
-        
-        ++multiplier;
-    }
-
-    return value;
+    return result;
 }
 
 void FirstPart()
@@ -177,11 +162,22 @@ void FirstPart()
     std::cout << "= First part =\n";
     Utils::FileIo fileIo("C:/projects/AdventOfCode/src/input.txt");
     const std::vector<std::string> filePerLine = fileIo.GetFileContent();
-    
-    Hands hands = GetHandsFromInput(filePerLine);
-    std::sort(hands.begin(), hands.end(), handCompare);
 
-    std::cout << "Value of hands: \n" << CalculateValue(hands) << "\n";
+    int answer = 0;
+
+    for(const auto& line : filePerLine)
+    {
+        const auto deviderPosition = line.find(" ");
+        const std::string conditionReport = line.substr(0, deviderPosition);
+        const std::string groupsString = line.substr(deviderPosition, line.length() - deviderPosition);
+        const Groups groups = GetGroupsFromString(groupsString);
+
+        const int numberOfPossibilities = GetNumberOfPossibilities(conditionReport, groups);
+        // std::cout << "Result: " << numberOfPossibilities << "\n";
+        answer += numberOfPossibilities;
+    }
+
+    std::cout << "Result: " << answer << "\n";
 }
 
 void SecondPart()
