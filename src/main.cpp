@@ -3,158 +3,144 @@
 #include "Utils/FileIO.hpp"
 #include "Utils/StringHandling.hpp"
 
-typedef std::vector<int> Groups;
+typedef std::vector<char> Column;
+typedef std::vector<Column> Platform;
 
-Groups GetGroupsFromString(const std::string& input)
+void Print(const Platform& platform)
 {
-    std::vector<std::string> split;
-    StringHandling::SplitStringOnCharacter(input, split, ',');
-
-    Groups groups;
-    for(const auto& group : split)
+    for(size_t rowIndex = 0u; rowIndex != platform[0].size(); ++rowIndex)
     {
-        groups.push_back(std::stoi(group));
-    }
-
-    return groups;
-}
-
-bool DoesGroupFit(const std::string& report, const int groupSize, const size_t position)
-{
-    const size_t groupEndPosition = position + groupSize;
-    if (groupEndPosition > report.length())
-    {
-        return false;
-    }
-
-    for (size_t index = position; index != groupEndPosition; ++index)
-    {
-        if(report[index] == '.')
+        for(size_t columnIndex = 0u; columnIndex != platform.size(); ++columnIndex)
         {
-            return false;
+            std::cout << platform[columnIndex][rowIndex];
         }
+        std::cout << "\n";
     }
+}
 
-    if (groupEndPosition < report.length())
+void Swap(std::vector<char>::iterator& right, std::vector<char>::iterator& left)
+{
+    char leftContent = *left;
+    *left = *right;
+    *right = leftContent;
+}
+
+void Swap(std::vector<char>::reverse_iterator& right, std::vector<char>::reverse_iterator& left)
+{
+    char leftContent = *left;
+    *left = *right;
+    *right = leftContent;
+}
+
+void TiltPlatformToNorth(Platform& platform)
+{
+    for(auto& column : platform)
     {
-        if (report[groupEndPosition] == '#') // Group would be too large
+        for(size_t columnIndex = 0u; columnIndex != column.size(); ++columnIndex)
         {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-std::string ReplaceInString(const std::string& input, const size_t position, const int groupSize)
-{
-    std::string output = input;
-    const size_t groupEndPosition = position + groupSize;
-    for(size_t index = position; index != groupEndPosition; ++index)
-    {
-        output[index] = '#';
-    }
-
-    if(groupEndPosition < input.length())
-    {
-        output[groupEndPosition] = '.';
-    }
-
-    return output;
-}
-
-bool IsGroup(const std::string& input, const size_t position, const int groupSize)
-{
-    const size_t groupEndPosition = position + groupSize;
-    if (groupEndPosition > input.length())
-    {
-        return false;
-    }
-
-    for (size_t index = position; index != groupEndPosition; ++index)
-    {
-        if (input[index] != '#')
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-Groups RemoveFirstElement(const Groups& groups)
-{
-    Groups groupsCopy = groups;
-    groupsCopy.erase(groupsCopy.begin());
-
-    return groupsCopy;
-}
-
-int GetNumberOfPossibilities(std::string conditionReport, Groups groups, const size_t position = 0u)
-{
-    int result = 0;
-    for (size_t index = position; index < conditionReport.length(); ++index)
-    {
-        const char& spring = conditionReport[index];
-        if(spring == '?')
-        {
-            if(!groups.empty() && DoesGroupFit(conditionReport, groups[0], index))
+            for(auto iterator = column.begin() + 1; iterator != column.end(); ++iterator)
             {
-                const std::string replacedReport = ReplaceInString(conditionReport, index, groups[0]);
-                Groups groupsCopy = RemoveFirstElement(groups);
-
-                if (groupsCopy.empty())
+                if(*iterator == 'O' && *(iterator-1) == '.')
                 {
-                    // std::cout << "Found: " << replacedReport << "\n";
-                    result += 1;
-                }
-
-                result += GetNumberOfPossibilities(replacedReport, groupsCopy, index + groups[0]);
-            }
-
-            conditionReport[index] = '.';
-            // result += GetNumberOfPossibilities(conditionReport, groups, index);
-        }
-        else if(spring == '#')
-        {
-            if (!groups.empty() && IsGroup(conditionReport, index, groups[0]))
-            {
-                if(index + groups[0] < conditionReport.length() && conditionReport[index + groups[0]] == '?')
-                {
-                    conditionReport[index + groups[0]] = '.';
-                }
-
-                index += groups[0];
-                groups = RemoveFirstElement(groups);
-
-                if (groups.empty())
-                {
-                    // std::cout << "Found: " << conditionReport << "\n";
-                    result += 1;
+                    Swap(iterator, iterator-1);
                 }
             }
-            else if(!groups.empty() && DoesGroupFit(conditionReport, groups[0], index))
-            {
-                const std::string replacedReport = ReplaceInString(conditionReport, index, groups[0]);
-                Groups groupsCopy = RemoveFirstElement(groups);
+        }
+    }
+}
 
-                if (groupsCopy.empty())
+void TiltPlatformToWest(Platform& platform)
+{
+    for(size_t rowIndex = 0u; rowIndex != platform[0].size(); ++rowIndex)
+    {
+        for(size_t row = 0u; row != platform.size(); ++row)
+        {
+            for(size_t columnIndex = 1u; columnIndex != platform.size(); ++columnIndex)
+            {
+                char& right = platform[columnIndex][rowIndex];
+                char& left = platform[columnIndex-1][rowIndex];
+                if(right == 'O' && left == '.')
                 {
-                    // std::cout << "Found: " << replacedReport << "\n";
-                    result += 1;
+                    char temp = left;
+                    left = right;
+                    right = temp;
                 }
-
-                result += GetNumberOfPossibilities(replacedReport, groupsCopy, index + groups[0]);
-            }
-            else
-            {
-                // Not posible, return 0
-                return result;
             }
         }
     }
+}
 
-    return result;
+void TiltPlatformToSouth(Platform& platform)
+{
+    for(auto& column : platform)
+    {
+        for(size_t columnIndex = 0u; columnIndex != column.size(); ++columnIndex)
+        {
+            for(auto iterator = column.rbegin() + 1; iterator != column.rend(); ++iterator)
+            {
+                if(*iterator == 'O' && *(iterator-1) == '.')
+                {
+                    Swap(iterator, iterator-1);
+                }
+            }
+        }
+    }
+}
+
+void TiltPlatformToEast(Platform& platform)
+{
+    for(size_t rowIndex = platform[0].size()-1; rowIndex != -1; --rowIndex)
+    {
+        for(size_t row = 0u; row != platform.size(); ++row)
+        {
+            for(size_t columnIndex = 1u; columnIndex != platform.size(); ++columnIndex)
+            {
+                char& right = platform[columnIndex][rowIndex];
+                char& left = platform[columnIndex-1][rowIndex];
+                if(left == 'O' && right == '.')
+                {
+                    char temp = left;
+                    left = right;
+                    right = temp;
+                }
+            }
+        }
+    }
+}
+
+int GetWeightForColumn(const Column& column)
+{
+    const int columnSize = column.size();
+    int weight = 0; 
+
+    for(size_t rowIndex = 0u; rowIndex != column.size(); ++rowIndex)
+    {
+        if(column[rowIndex] == 'O')
+        {
+            weight += columnSize - rowIndex;
+        }
+    }
+
+    return weight;
+}
+
+int GetWeightOffPlatform(const Platform& platform)
+{
+    int weight = 0;
+    for(const auto& column : platform)
+    {
+        weight += GetWeightForColumn(column);
+    }
+
+    return weight;
+}
+
+void PerformTiltingCycle(Platform& platform)
+{
+    TiltPlatformToNorth(platform);
+    TiltPlatformToWest(platform);
+    TiltPlatformToSouth(platform);
+    TiltPlatformToEast(platform);
 }
 
 void FirstPart()
@@ -163,21 +149,29 @@ void FirstPart()
     Utils::FileIo fileIo("C:/projects/AdventOfCode/src/input.txt");
     const std::vector<std::string> filePerLine = fileIo.GetFileContent();
 
-    int answer = 0;
-
+    Platform platform;
     for(const auto& line : filePerLine)
     {
-        const auto deviderPosition = line.find(" ");
-        const std::string conditionReport = line.substr(0, deviderPosition);
-        const std::string groupsString = line.substr(deviderPosition, line.length() - deviderPosition);
-        const Groups groups = GetGroupsFromString(groupsString);
+        if(platform.size() != line.length())
+        {
+            for(size_t columnIndex = 0u; columnIndex != line.length(); ++columnIndex)
+            {
+                platform.push_back(Column());
+            }
+        }
 
-        const int numberOfPossibilities = GetNumberOfPossibilities(conditionReport, groups);
-        // std::cout << "Result: " << numberOfPossibilities << "\n";
-        answer += numberOfPossibilities;
+        for(size_t columnIndex = 0; columnIndex != filePerLine.size(); ++columnIndex)
+        {
+            platform[columnIndex].push_back(line[columnIndex]);
+        }
     }
 
-    std::cout << "Result: " << answer << "\n";
+    for(unsigned long long reps = 0u; reps != 1000000000; ++reps)
+    {
+        PerformTiltingCycle(platform);
+    }
+
+    std::cout << "Weight: " << GetWeightOffPlatform(platform) << "\n";
 }
 
 void SecondPart()
