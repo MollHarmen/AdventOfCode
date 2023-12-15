@@ -1,146 +1,94 @@
 #include <iostream>
+#include <sstream>
+#include <vector>
 
 #include "Utils/FileIO.hpp"
 #include "Utils/StringHandling.hpp"
 
-typedef std::vector<char> Column;
-typedef std::vector<Column> Platform;
+typedef std::string Row;
+typedef std::vector<Row> View;
 
-void Print(const Platform& platform)
+typedef std::vector<View> Views;
+
+View GetVerticalMirrorOfView(const View& view)
 {
-    for(size_t rowIndex = 0u; rowIndex != platform[0].size(); ++rowIndex)
+    View mirroredView;
+    for(const auto& line : view)
     {
-        for(size_t columnIndex = 0u; columnIndex != platform.size(); ++columnIndex)
+        std::stringstream mirroredString;
+        for(auto iterator = line.rbegin(); iterator != line.rend(); ++iterator)
         {
-            std::cout << platform[columnIndex][rowIndex];
+            mirroredString << *iterator;
         }
-        std::cout << "\n";
+        mirroredView.push_back(mirroredString.str());
     }
+
+    return mirroredView;
 }
 
-void Swap(std::vector<char>::iterator& right, std::vector<char>::iterator& left)
+bool HasVerticalReflection(const View& view, int& reflectionOffset)
 {
-    char leftContent = *left;
-    *left = *right;
-    *right = leftContent;
-}
+    View verticalMirroredView = GetVerticalMirrorOfView(view);
 
-void Swap(std::vector<char>::reverse_iterator& right, std::vector<char>::reverse_iterator& left)
-{
-    char leftContent = *left;
-    *left = *right;
-    *right = leftContent;
-}
-
-void TiltPlatformToNorth(Platform& platform)
-{
-    for(auto& column : platform)
+    int offset = 0;
+    while(offset < view[0].length() - 1)
     {
-        for(size_t columnIndex = 0u; columnIndex != column.size(); ++columnIndex)
+        bool isSame = true;
+        for(size_t lineIndex = 0u; lineIndex != view.size() && isSame; ++lineIndex)
         {
-            for(auto iterator = column.begin() + 1; iterator != column.end(); ++iterator)
+            const auto& line = view[lineIndex];
+            for (size_t characterIndex = offset; characterIndex != line.size() && isSame; ++characterIndex)
             {
-                if(*iterator == 'O' && *(iterator-1) == '.')
-                {
-                    Swap(iterator, iterator-1);
-                }
+                const auto& character = line[characterIndex];
+                const auto& mirroredChar = verticalMirroredView[lineIndex][characterIndex - offset];
+                isSame &= (character == mirroredChar);
             }
         }
-    }
-}
-
-void TiltPlatformToWest(Platform& platform)
-{
-    for(size_t rowIndex = 0u; rowIndex != platform[0].size(); ++rowIndex)
-    {
-        for(size_t row = 0u; row != platform.size(); ++row)
+        if (isSame)
         {
-            for(size_t columnIndex = 1u; columnIndex != platform.size(); ++columnIndex)
-            {
-                char& right = platform[columnIndex][rowIndex];
-                char& left = platform[columnIndex-1][rowIndex];
-                if(right == 'O' && left == '.')
-                {
-                    char temp = left;
-                    left = right;
-                    right = temp;
-                }
-            }
+            reflectionOffset = offset;
+            return true;
         }
+        ++offset;
     }
+
+    return false;
 }
 
-void TiltPlatformToSouth(Platform& platform)
+View GetHorizontalMirroredView(const View& view)
 {
-    for(auto& column : platform)
+    View mirroredView;
+    for(auto iterator = view.rbegin(); iterator != view.rend(); ++iterator)
     {
-        for(size_t columnIndex = 0u; columnIndex != column.size(); ++columnIndex)
+        mirroredView.push_back(*iterator);
+    }
+
+    return mirroredView;
+}
+
+bool HasHorizontalReflection(const View& view, int& reflectionOffset)
+{
+    View horizontalMirroredView = GetHorizontalMirroredView(view);
+
+    int offset = 0;
+    while(offset < view.size() - 1)
+    {
+        bool isSame = true;
+        for(size_t lineIndex = offset; lineIndex != view.size() && isSame; ++lineIndex)
         {
-            for(auto iterator = column.rbegin() + 1; iterator != column.rend(); ++iterator)
-            {
-                if(*iterator == 'O' && *(iterator-1) == '.')
-                {
-                    Swap(iterator, iterator-1);
-                }
-            }
+            const auto& line = view[lineIndex];
+            const auto& mirroredLine = horizontalMirroredView[lineIndex - offset];
+            isSame &= (line == mirroredLine);
         }
-    }
-}
-
-void TiltPlatformToEast(Platform& platform)
-{
-    for(size_t rowIndex = platform[0].size()-1; rowIndex != -1; --rowIndex)
-    {
-        for(size_t row = 0u; row != platform.size(); ++row)
+        if (isSame)
         {
-            for(size_t columnIndex = 1u; columnIndex != platform.size(); ++columnIndex)
-            {
-                char& right = platform[columnIndex][rowIndex];
-                char& left = platform[columnIndex-1][rowIndex];
-                if(left == 'O' && right == '.')
-                {
-                    char temp = left;
-                    left = right;
-                    right = temp;
-                }
-            }
+            reflectionOffset = offset;
+            return true;
         }
-    }
-}
-
-int GetWeightForColumn(const Column& column)
-{
-    const int columnSize = column.size();
-    int weight = 0; 
-
-    for(size_t rowIndex = 0u; rowIndex != column.size(); ++rowIndex)
-    {
-        if(column[rowIndex] == 'O')
-        {
-            weight += columnSize - rowIndex;
-        }
+        ++offset;
     }
 
-    return weight;
-}
-
-int GetWeightOffPlatform(const Platform& platform)
-{
-    int weight = 0;
-    for(const auto& column : platform)
-    {
-        weight += GetWeightForColumn(column);
-    }
-
-    return weight;
-}
-
-void PerformTiltingCycle(Platform& platform)
-{
-    TiltPlatformToNorth(platform);
-    TiltPlatformToWest(platform);
-    TiltPlatformToSouth(platform);
-    TiltPlatformToEast(platform);
+    return false;
 }
 
 void FirstPart()
@@ -149,29 +97,38 @@ void FirstPart()
     Utils::FileIo fileIo("C:/projects/AdventOfCode/src/input.txt");
     const std::vector<std::string> filePerLine = fileIo.GetFileContent();
 
-    Platform platform;
+    Views views;
+    std::vector<Row> view;
     for(const auto& line : filePerLine)
     {
-        if(platform.size() != line.length())
+        if(line.length() != 0)
         {
-            for(size_t columnIndex = 0u; columnIndex != line.length(); ++columnIndex)
-            {
-                platform.push_back(Column());
-            }
+            view.push_back(line);
         }
-
-        for(size_t columnIndex = 0; columnIndex != filePerLine.size(); ++columnIndex)
+        else
         {
-            platform[columnIndex].push_back(line[columnIndex]);
+            views.push_back(view);
+            view.clear();
         }
     }
+    views.push_back(view);
 
-    for(unsigned long long reps = 0u; reps != 1000000000; ++reps)
+    int result = 0;
+    for(const auto& view : views)
     {
-        PerformTiltingCycle(platform);
+        int reflecionOffset = 0;
+        if(HasVerticalReflection(view, reflecionOffset))
+        {
+            const int answer = (view[0].length() / 2) + reflecionOffset;
+            result += answer;
+        }
+        else if(HasHorizontalReflection(view, reflecionOffset))
+        {
+            const int answer = ((view.size() / 2) + reflecionOffset) * 100;
+            result += answer;
+        }
     }
-
-    std::cout << "Weight: " << GetWeightOffPlatform(platform) << "\n";
+    std::cout << "Result: " << result << "\n";
 }
 
 void SecondPart()
