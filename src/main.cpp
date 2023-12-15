@@ -1,94 +1,25 @@
+#include <algorithm>
 #include <iostream>
-#include <sstream>
+#include <map>
+#include <numeric>
 #include <vector>
 
 #include "Utils/FileIO.hpp"
 #include "Utils/StringHandling.hpp"
 
-typedef std::string Row;
-typedef std::vector<Row> View;
+typedef std::tuple<std::string, std::string> Node;
+typedef std::map<std::string, Node> Network;
 
-typedef std::vector<View> Views;
-
-View GetVerticalMirrorOfView(const View& view)
+Node GetNodeFromString(const std::string& input)
 {
-    View mirroredView;
-    for(const auto& line : view)
-    {
-        std::stringstream mirroredString;
-        for(auto iterator = line.rbegin(); iterator != line.rend(); ++iterator)
-        {
-            mirroredString << *iterator;
-        }
-        mirroredView.push_back(mirroredString.str());
-    }
+    std::string copy = input;
+    copy.erase(0, 1);
+    copy.erase(copy.size() - 1);
 
-    return mirroredView;
-}
+    std::vector<std::string> split;
+    StringHandling::SplitOnString(copy, split, ", ");
 
-bool HasVerticalReflection(const View& view, int& reflectionOffset)
-{
-    View verticalMirroredView = GetVerticalMirrorOfView(view);
-
-    int offset = 0;
-    while(offset < view[0].length() - 1)
-    {
-        bool isSame = true;
-        for(size_t lineIndex = 0u; lineIndex != view.size() && isSame; ++lineIndex)
-        {
-            const auto& line = view[lineIndex];
-            for (size_t characterIndex = offset; characterIndex != line.size() && isSame; ++characterIndex)
-            {
-                const auto& character = line[characterIndex];
-                const auto& mirroredChar = verticalMirroredView[lineIndex][characterIndex - offset];
-                isSame &= (character == mirroredChar);
-            }
-        }
-        if (isSame)
-        {
-            reflectionOffset = offset;
-            return true;
-        }
-        ++offset;
-    }
-
-    return false;
-}
-
-View GetHorizontalMirroredView(const View& view)
-{
-    View mirroredView;
-    for(auto iterator = view.rbegin(); iterator != view.rend(); ++iterator)
-    {
-        mirroredView.push_back(*iterator);
-    }
-
-    return mirroredView;
-}
-
-bool HasHorizontalReflection(const View& view, int& reflectionOffset)
-{
-    View horizontalMirroredView = GetHorizontalMirroredView(view);
-
-    int offset = 0;
-    while(offset < view.size() - 1)
-    {
-        bool isSame = true;
-        for(size_t lineIndex = offset; lineIndex != view.size() && isSame; ++lineIndex)
-        {
-            const auto& line = view[lineIndex];
-            const auto& mirroredLine = horizontalMirroredView[lineIndex - offset];
-            isSame &= (line == mirroredLine);
-        }
-        if (isSame)
-        {
-            reflectionOffset = offset;
-            return true;
-        }
-        ++offset;
-    }
-
-    return false;
+    return std::make_tuple(split[0], split[1]);
 }
 
 void FirstPart()
@@ -97,39 +28,84 @@ void FirstPart()
     Utils::FileIo fileIo("C:/projects/AdventOfCode/src/input.txt");
     const std::vector<std::string> filePerLine = fileIo.GetFileContent();
 
-    Views views;
-    std::vector<Row> view;
+    std::string instructions;
+    Network network;
+
     for(const auto& line : filePerLine)
     {
-        if(line.length() != 0)
+        if(instructions.length() == 0)
         {
-            view.push_back(line);
+            instructions = line;
         }
         else
         {
-            views.push_back(view);
-            view.clear();
+            if(!line.empty())
+            {
+                std::vector<std::string> split;
+                StringHandling::SplitOnString(line, split, " = ");
+                network[split[0]] = GetNodeFromString(split[1]);
+            }
         }
     }
-    views.push_back(view);
 
-    int result = 0;
-    for(const auto& view : views)
+    std::string position = "AAA";
+    size_t instructionIndex = 0;
+    int numberOfSteps = 0;
+
+    while(position != "ZZZ")
     {
-        int reflecionOffset = 0;
-        if(HasVerticalReflection(view, reflecionOffset))
+        const Node& node = network[position];
+        if(instructions[instructionIndex] == 'L')
         {
-            const int answer = (view[0].length() / 2) + reflecionOffset;
-            result += answer;
+            position = std::get<0>(node);
         }
-        else if(HasHorizontalReflection(view, reflecionOffset))
+        else
         {
-            const int answer = ((view.size() / 2) + reflecionOffset) * 100;
-            result += answer;
+            position = std::get<1>(node);
+        }
+        instructionIndex = ++instructionIndex % instructions.length();
+        ++numberOfSteps;
+    }
+
+    std::cout << "Number of steps taken: " << numberOfSteps << "\n";
+}
+
+std::vector<std::string> GetStartPositions(const Network& network)
+{
+    std::vector<std::string> positions;
+    for(const auto& mapItem : network)
+    {
+        const std::string nodeKey = mapItem.first;
+        if(nodeKey[2] == 'A')
+        {
+            positions.push_back(nodeKey);
         }
     }
-    std::cout << "Result: " << result << "\n";
+    return positions;
 }
+
+bool EndReached(std::vector<std::string>& positions)
+{
+    for(const auto& position : positions)
+    {
+        if(position[2] != 'Z')
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+int GcdOfArray(std::vector<int>& arr, int idx)
+{ 
+    if (idx == arr.size() - 1) { 
+        return arr[idx]; 
+    } 
+    int a = arr[idx]; 
+    int b = GcdOfArray(arr, idx + 1); 
+    return std::gcd(a, b); // __gcd(a,b) is inbuilt library function 
+} 
 
 void SecondPart()
 {
@@ -137,14 +113,81 @@ void SecondPart()
     Utils::FileIo fileIo("C:/projects/AdventOfCode/src/input.txt");
     const std::vector<std::string> filePerLine = fileIo.GetFileContent();
 
+    std::string instructions;
+    Network network;
+
+    for(const auto& line : filePerLine)
+    {
+        if(instructions.length() == 0)
+        {
+            instructions = line;
+        }
+        else
+        {
+            if(!line.empty())
+            {
+                std::vector<std::string> split;
+                StringHandling::SplitOnString(line, split, " = ");
+                network[split[0]] = GetNodeFromString(split[1]);
+            }
+        }
+    }
+
+    std::vector<std::string> positions = GetStartPositions(network);
+    std::vector<int> numberOfStepsTaken;
+    for(auto& position : positions)
+    {
+        size_t instructionIndex = 0;
+        int numberOfSteps = 0;
+        while(position[2] != 'Z')
+        {
+            const Node& node = network[position];
+            if(instructions[instructionIndex] == 'L')
+            {
+                position = std::get<0>(node);
+            }
+            else
+            {
+                position = std::get<1>(node);
+            }
+            instructionIndex = ++instructionIndex % instructions.length();
+            ++numberOfSteps;
+        }
+        numberOfStepsTaken.push_back(numberOfSteps);
+    }
+
+    std::sort(numberOfStepsTaken.begin(), numberOfStepsTaken.end());
+    unsigned long long multiplier = GcdOfArray(numberOfStepsTaken, 0);
+
+
+    // while(!allMatch)
+    // {
+    //     unsigned long long numberOfSteps = numberOfStepsTaken[0] * multiplier;
+    //     bool noLeftOver = true;
+    //     for(const int steps : numberOfStepsTaken)
+    //     {
+    //         if(noLeftOver)
+    //         {
+    //             noLeftOver &= numberOfSteps % steps == 0;
+    //         }
+    //     }
+        
+    //     if(noLeftOver)
+    //     {
+    //         allMatch = true;
+    //     }
+    //     ++multiplier;
+    // }
+
+    std::cout << "Number of steps taken: " << numberOfStepsTaken[0] * multiplier << "\n";
 }
 
 int main()
 {
     std::cout << "Advent of code main\n";
 
-    FirstPart();
-    // SecondPart();
+    // FirstPart();
+    SecondPart();
 
     return 0;
 }
