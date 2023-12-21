@@ -1,218 +1,97 @@
 #include <algorithm>
 #include <iostream>
-#include <map>
-#include <stdexcept>
+#include <limits>
+#include <string>
 #include <vector>
-#include <queue>
-
 #include "Utils/FileIO.hpp"
 #include "Utils/StringHandling.hpp"
 
-struct Signal
+struct Position
 {
-    bool value;
-    std::string source;
-    std::string target;
+    size_t x;
+    size_t y;
 };
 
-typedef std::queue<Signal> Signals;
-Signals g_signals;
+typedef std::vector<std::string> Garden;
+typedef std::vector<Position> Positions;
+typedef std::vector<std::vector<bool>> Visited;
 
-struct Module
+
+Position FindStartingPosition(const Garden& garden)
 {
-    Module(const std::string& name, std::vector<std::string> targets)
-    : mName(name)
-    , mTargets(targets)
-    {}
-
-    virtual ~Module(){}
-
-    virtual void Process(const bool signal){};
-
-    bool Output() const
+    for(size_t rowIndex = 0u; rowIndex != garden.size(); ++rowIndex)
     {
-        return mState;
-    }
-
-    void PutOutputToSignals(const bool signal)
-    {
-        for(const auto& target : mTargets)
+        const std::string& row = garden[rowIndex];
+        const auto position = row.find("S");
+        if(position != row.npos)
         {
-            g_signals.push({signal, mName, target});
+            return { position, rowIndex };
         }
     }
 
-    virtual void AddConnection(const Module* module)
-    {}
+    return {};
+}
 
-    bool HasNameInTargets(const std::string& name) const
+Visited GetVisitedMap(const Garden& garden)
+{
+    Visited visited;
+    for(const auto& line : garden)
     {
-        const auto found = std::find_if(mTargets.begin(), mTargets.end(), [&name](const std::string& targetName){ return name == targetName; });
-        return found != mTargets.end();
+        std::vector<bool> emptyLine(line.size(), false);
+        visited.push_back(emptyLine);
     }
+    return visited;
+}
 
-    std::string mName;
-    bool mState = false;
-    std::vector<std::string> mTargets;
-};
+size_t g_numberOfRequiredSteps = 64;
 
-struct Button : public Module
+int GetPossibleEndPossitionsFromPosition(const Position& position, const int iteration, const Garden& garden, Visited& visited)
 {
-    Button()
-    : Module("button", {"broadcaster"})
-    {}
-    
-    void Process(const bool signal) override
+    const size_t x = position.x;
+    const size_t y = position.y;
+    int result = 0;
+    visited[y][x] = true;
+    if(iteration != g_numberOfRequiredSteps)
     {
-        PutOutputToSignals(signal);
-    };
-};
-
-struct Broadcaster : public Module
-{
-    Broadcaster(const std::string& name, std::vector<std::string> targets)
-    : Module(name, targets)
-    {}
-
-    void Process(const bool signal)
-    {
-        PutOutputToSignals(signal);
-    }
-};
-
-struct FlipFlop : public Module
-{
-    FlipFlop(const std::string& name, std::vector<std::string> targets)
-    : Module(name, targets)
-    {}
-
-    void Process(const bool signal) override
-    {
-        if(!signal)
+        if(y > 0 && garden[y-1][x] != '#') // north
         {
-            mState = !mState;
-            PutOutputToSignals(mState);
+            Position nextPosition {x, y-1};
+            if(visited[nextPosition.y][nextPosition.x] == false)
+            {
+                result += GetPossibleEndPossitionsFromPosition(nextPosition, iteration + 1, garden, visited);
+            }
         }
-    }
-};
-
-struct Conjunction : public Module
-{
-    Conjunction(const std::string& name, std::vector<std::string> targets)
-    : Module(name, targets)
-    {
-        mState = true;
-    }
-
-    void AddConnection(const Module* module) override
-    {
-        incommingConnections.push_back(module);
-    }
-
-    void Process(const bool) override
-    {
-        bool allHigh = true;
-        for(const auto* module : incommingConnections)
+        if(y < (garden.size()-1) && garden[y+1][x] != '#') // south
         {
-            allHigh &= module->Output();
-            if(!allHigh)
-                break;
+            Position nextPosition { x, y+1 };
+            if(visited[nextPosition.y][nextPosition.x] == false)
+            {
+                result += GetPossibleEndPossitionsFromPosition(nextPosition, iteration + 1, garden, visited);
+            }
         }
-
-        if(allHigh)
+        if(x > 0 && garden[y][x-1] != '#') // east
         {
-            mState = !allHigh;
-            PutOutputToSignals(mState);
+            Position nextPosition { x-1, y };
+            if(visited[nextPosition.y][nextPosition.x] == false)
+            {
+                result += GetPossibleEndPossitionsFromPosition(nextPosition, iteration + 1, garden, visited);
+            }
         }
-        else
+        if((y < garden[y].length()-1) && garden[y][x+1] != '#')
         {
-            mState = true;
-            PutOutputToSignals(mState);
+            Position nextPosition { x+1, y };
+            if(visited[nextPosition.y][nextPosition.x] == false)
+            {
+                result += GetPossibleEndPossitionsFromPosition(nextPosition, iteration + 1, garden, visited);
+            }
         }
-    }
-
-    std::vector<const Module*> incommingConnections;
-};
-
-typedef std::map<std::string, Module*> Modules;
-
-void AddToModules(const std::string& input, Modules& modules)
-{
-    std::vector<std::string> split;
-    StringHandling::SplitOnString(input, split, " -> ");
-
-    std::vector<std::string> targets;
-    StringHandling::SplitOnString(split[1], targets, ", ");
-    const std::string& name = split[0];
-    if(name == "broadcaster")
-    {
-        Broadcaster* broadcaster = new Broadcaster(name, targets);
-        modules[name] = broadcaster;
     }
     else
     {
-        const char& type = name[0];
-        const std::string typelessName = name.substr(1);
-        if(type == '%')
-        {
-            FlipFlop* flipFlop = new FlipFlop(typelessName, targets);
-            modules[typelessName] = flipFlop;
-        }
-        else if(type == '&')
-        {
-            Conjunction* conjunction = new Conjunction(typelessName, targets);
-            for(const auto modulePair : modules)
-            {
-                const auto* module = modulePair.second;
-               if(module->HasNameInTargets(typelessName))
-               {
-                    conjunction->AddConnection(module);
-               }
-            }
-            modules[typelessName] = conjunction;
-        }
-    }
-}
-
-std::string GetOutputString(const bool value)
-{
-    if(value)
-    {
-        return " -high-> ";
+        return 1;
     }
 
-    return " -low-> ";
-}
-
-void PushButton(Modules& modules, uint64_t& high, uint64_t& low)
-{
-    modules["button"]->Process(false);
-    while(!g_signals.empty())
-    {
-        auto& signalIterator = g_signals.front();
-        std::cout << signalIterator.source << GetOutputString(signalIterator.value) << signalIterator.target << "\n";
-
-        try
-        {
-            modules.at(signalIterator.target)->Process(signalIterator.value);
-        }
-        catch(const std::out_of_range&)
-        {
-            // Do nothing?
-            std::cout << "Unknown target: " << signalIterator.target << "\n";
-        }
-
-        if(signalIterator.value)
-        {
-            ++high;
-        }
-        else
-        {
-            ++low;
-        }
-        
-        g_signals.pop();
-    }
+    return result;
 }
 
 void FirstPart()
@@ -220,42 +99,12 @@ void FirstPart()
     std::cout << "= First part =\n";
     Utils::FileIo fileIo("C:/projects/AdventOfCode/src/input.txt");
     const std::vector<std::string> filePerLine = fileIo.GetFileContent();
+    Visited foundEndPositions = GetVisitedMap(filePerLine);
 
-    std::string boadcast;
-    Modules modules;
-    modules["button"] = new Button();
+    const Position startingPosistion = FindStartingPosition(filePerLine);
+    const int result = GetPossibleEndPossitionsFromPosition(startingPosistion, 0u, filePerLine, foundEndPositions);
 
-    std::vector<std::string> addAtEnd;
-    for(const auto& line : filePerLine)
-    {
-        if(line.find("&") != line.npos)
-        {
-            addAtEnd.push_back(line);
-        }
-        else
-        {
-            AddToModules(line, modules);
-        }
-    }
-
-    for(const auto& line : addAtEnd)
-    {
-        AddToModules(line, modules);
-    }
-
-    uint64_t high = 0u;
-    uint64_t low = 0u;
-    for(size_t buttonPushes = 0u; buttonPushes != 1000; ++buttonPushes)
-    {
-        PushButton(modules, high, low);
-    }
-
-    std::cout << "result: " << high * low << "\n";
-
-    for(auto& module : modules)
-    {
-        delete module.second;
-    }
+    std::cout << "Garden plots reachable: " << result << "\n";
 }
 
 void SecondPart()
