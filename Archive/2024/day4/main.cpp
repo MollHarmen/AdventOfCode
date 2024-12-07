@@ -123,33 +123,36 @@ void FirstPart() {
     std::cout << result << "\n";
 }
 
-bool IsXMax(const std::vector<std::string>& file_content, const size_t line_index, const size_t character_index) {
-    if(line_index > 0 && line_index < file_content.size()) {
-        if(character_index > 0 && character_index < file_content[line_index].size()-2) {
-            {
-                std::string word; 
-                auto row = character_index - 1;
-                for(size_t index = line_index-1; index != line_index+1; ++index) {
-                    word += file_content[index][row++];
-                }
-                
-                if(word != "MAS" || word != "SAM"){
-                    return false;
-                }
-            }
+std::vector<std::string> GetCrossWords(const std::vector<std::string>& file_content, const size_t line_index, const size_t character_index) {
+    std::vector<std::string> words;
+    
+    std::string word_one; 
+    auto row = character_index - 1;
+    for(size_t index = line_index-1; index != line_index+2; ++index) {
+        word_one += file_content[index][row++];
+    }
+    
+    words.push_back(word_one);
 
-            std::string word; 
-            auto row = character_index + 1;
-            for(size_t index = line_index-1; index != line_index+1; ++index) {
-                word += file_content[index][row--];
-            }
+    std::string word; 
+    auto row_number = character_index + 1;
+    for(size_t index = line_index-1; index != line_index+2; ++index) {
+        word += file_content[index][row_number--];
+    }
+
+    words.push_back(word);
+    return words;
+}
+
+bool IsXMax(const std::vector<std::string>& file_content, const size_t line_index, const size_t character_index) {
+    if(line_index > 0 && line_index < file_content.size()-1) {
+        if(character_index > 0 && character_index < file_content[line_index].size()-1) {
             
-            if(word != "MAS" || word != "SAM"){
-                return false;
-            }
+            const auto words = GetCrossWords(file_content, line_index, character_index);
+            return std::all_of(words.begin(), words.end(), [](const std::string& word){ std::cout << "Word: " << word << "\n"; return word == "MAS" || word == "SAM"; });
         }
     }
-    return true;
+    return false;
 }
 
 void SecondPart() {
