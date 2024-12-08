@@ -5,180 +5,89 @@
 #include <iostream>
 #include <numeric>
 #include <string>
+#include <tuple>
 #include <vector>
 
-const std::string xmas = "XMAS";
+typedef std::vector<std::tuple<int,int>> PageOrderRules;
 
-std::vector<std::string> GetHorizontalWords(const std::vector<std::string>& file_content, const size_t line_index, const size_t character_index) {
-    std::vector<std::string> words;
-    if(character_index >= (xmas.size()-1)) {
-        std::string word; 
-        for(size_t index = character_index; index != character_index-xmas.size(); --index) {
-            word += file_content[line_index][index];
-        }
-        words.push_back(word);
-        std::cout << "Reverse XMAS: " << word << "\n";
-    }
-    if(character_index <= (file_content[line_index].size() - xmas.size())) {
-        std::string word;
-        for(size_t index = character_index; index != character_index+xmas.size(); ++index) {
-            word += file_content[line_index][index];
-        }
-        words.push_back(word);
-        std::cout << "XMAS: " << word << "\n";
-    }
-
-    return words;
-}
-std::vector<std::string> GetDiagonalWords(const std::vector<std::string>& file_content, const size_t line_index, const size_t character_index) {
-    std::vector<std::string> words;
-    if(line_index >= (xmas.size()-1) && character_index >= (xmas.size()-1)) {
-        std::string word; 
-        auto row = character_index;
-        for(size_t index = line_index; index != line_index-xmas.size(); --index) {
-            word += file_content[index][row--];
-        }
-        words.push_back(word);
-        std::cout << "Diagonal top left XMAS: " << word << "\n";
-    }
-    if(line_index <= (file_content.size() - xmas.size()) && character_index >= (xmas.size()-1)) {
-        std::string word;
-        auto row = character_index;
-        for(size_t index = line_index; index != line_index+xmas.size(); ++index) {
-            word += file_content[index][row--];
-        }
-        words.push_back(word);
-        std::cout << "Diagonal bottom left XMAS: " << word << "\n";
-    }
-    if(line_index >= (xmas.size()-1) && character_index <= (file_content[line_index].size() - xmas.size())) {
-        std::string word; 
-        auto row = character_index;
-        for(size_t index = line_index; index != line_index-xmas.size(); --index) {
-            word += file_content[index][row++];
-        }
-        words.push_back(word);
-        std::cout << "Diagonal top right XMAS: " << word << "\n";
-    }
-    if(line_index <= (file_content.size() - xmas.size()) && character_index <= (file_content[line_index].size() - xmas.size())) {
-        std::string word;
-        auto row = character_index;
-        for(size_t index = line_index; index != line_index+xmas.size(); ++index) {
-            word += file_content[index][row++];
-        }
-        words.push_back(word);
-        std::cout << "Diagonal bottom right XMAS: " << word << "\n";
-    }
-
-    return words;
-}
-
-std::vector<std::string> GetVerticalWords(const std::vector<std::string>& file_content, const size_t line_index, const size_t character_index) {
-    std::vector<std::string> words;
-    if(line_index >= (xmas.size()-1)) {
-        std::string word; 
-        for(size_t index = line_index; index != line_index-xmas.size(); --index) {
-            word += file_content[index][character_index];
-        }
-        words.push_back(word);
-        std::cout << "Vertical top XMAS: " << word << "\n";
-    }
-    if(line_index <= (file_content.size() - xmas.size())) {
-        std::string word;
-        for(size_t index = line_index; index != line_index+xmas.size(); ++index) {
-            word += file_content[index][character_index];
-        }
-        words.push_back(word);
-        std::cout << "Vertical bottom XMAS: " << word << "\n";
-    }
-
-    return words;
-}
-
-
-void FirstPart() {
+std::tuple<PageOrderRules, std::vector<std::vector<int>>> GetInputsFromInputFile() {
     auto input_file = Utils::FileIo("input.txt");
     const auto file_content = input_file.GetFileContent();
 
-    int result = 0;
+    size_t line_index = 0u;
+    PageOrderRules page_order_rules;
 
-    for(size_t line_index = 0u; line_index != file_content.size(); ++line_index) {
-        const auto& line = file_content[line_index];
-        for(size_t character_index = 0u; character_index != line.size(); ++character_index) {
-            const auto& character = line[character_index];
-            if(character == 'X') {
-                std::vector<std::string> horizontal_words = GetHorizontalWords(file_content, line_index, character_index);
-                std::vector<std::string> vertical_words = GetVerticalWords(file_content, line_index, character_index);
-                std::vector<std::string> diagonal_words = GetDiagonalWords(file_content, line_index, character_index);
-
-                std::vector<std::string> combined;
-                combined.insert(combined.end(), horizontal_words.begin(), horizontal_words.end());
-                combined.insert(combined.end(), vertical_words.begin(), vertical_words.end());
-                combined.insert(combined.end(), diagonal_words.begin(), diagonal_words.end());
-
-                result += std::count_if(combined.begin(), combined.end(), [](const auto& item){ return item == xmas;});
-            }
-        }
+    while(file_content[line_index] != "" && line_index != file_content.size()) {
+        std::vector<std::string> order;
+        StringHandling::SplitStringOnCharacter(file_content[line_index++], order, '|');
+        page_order_rules.push_back(std::make_tuple(std::stoi(order[0]), std::stoi(order[1])));
     }
 
-    std::cout << result << "\n";
+    ++line_index;
+    std::vector<std::vector<int>> updates;
+    while(line_index != file_content.size()) {
+        std::vector<int> update;
+        std::vector<std::string> update_strings;
+        StringHandling::SplitStringOnCharacter(file_content[line_index++], update_strings, ',');
+
+        for(const auto& number_string : update_strings) {
+            update.push_back(std::stoi(number_string));
+        }
+        
+        updates.push_back(update);
+    }
+
+    return std::make_tuple(page_order_rules, updates);
 }
 
-bool IsXMax(const std::vector<std::string>& file_content, const size_t line_index, const size_t character_index) {
-    if(line_index > 0 && line_index < file_content.size()) {
-        if(character_index > 0 && character_index < file_content[line_index].size()-2) {
-            {
-                std::string word; 
-                auto row = character_index - 1;
-                for(size_t index = line_index-1; index != line_index+1; ++index) {
-                    word += file_content[index][row++];
-                }
-                
-                if(word != "MAS" || word != "SAM"){
+PageOrderRules GetOrderingRulesForNumber(const PageOrderRules& page_order_rules, const int number) {
+    PageOrderRules rules_for_number;
+    for(const auto& rule : page_order_rules) {
+        if(std::get<0>(rule) == number) {
+            rules_for_number.push_back(rule);
+        }
+    }
+    
+    return rules_for_number;
+}
+
+bool IsUpdateInRightOrder(const std::vector<int>& update, const PageOrderRules& page_order_rules) {
+    for(auto number_iterator = update.begin(); number_iterator != update.end(); ++number_iterator) {
+        const auto ordering_rules = GetOrderingRulesForNumber(page_order_rules, *number_iterator);
+        for(const auto& rule : ordering_rules) {
+            const auto found_iterator = std::find(update.begin(), update.end(), std::get<1>(rule));
+            if(found_iterator != update.end()) {
+                if(number_iterator < found_iterator) {
                     return false;
                 }
             }
-
-            std::string word; 
-            auto row = character_index + 1;
-            for(size_t index = line_index-1; index != line_index+1; ++index) {
-                word += file_content[index][row--];
-            }
-            
-            if(word != "MAS" || word != "SAM"){
-                return false;
-            }
         }
     }
+
     return true;
 }
 
-void SecondPart() {
-    auto input_file = Utils::FileIo("input.txt");
-    const auto file_content = input_file.GetFileContent();
+void FirstPart() {
+    auto [page_order_rules, updates] = GetInputsFromInputFile();
 
-    int result = 0;
-
-    for(size_t line_index = 0u; line_index != file_content.size(); ++line_index) {
-        const auto& line = file_content[line_index];
-        for(size_t character_index = 0u; character_index != line.size(); ++character_index) {
-            const auto& character = line[character_index];
-            if(character == 'A') {
-                if(IsXMax(file_content, line_index, character_index)) {
-                    ++result;
-                }
-            }
+    for(const auto& update : updates) {
+        if(IsUpdateInRightOrder(update, page_order_rules))
+        {
+            const auto middle_number = update[(update.size() + 1) / 2];
+            std::cout << middle_number << "\n";
         }
     }
+}
 
-    std::cout << result << "\n";
+void SecondPart() {
 }
 
 int main()
 {
     std::cout << "Advent of code main\n";
 
-    // FirstPart();
-    SecondPart();
+    FirstPart();
+    // SecondPart();
 
     return 0;
 } 
