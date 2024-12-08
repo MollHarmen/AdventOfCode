@@ -57,7 +57,7 @@ bool IsUpdateInRightOrder(const std::vector<int>& update, const PageOrderRules& 
         for(const auto& rule : ordering_rules) {
             const auto found_iterator = std::find(update.begin(), update.end(), std::get<1>(rule));
             if(found_iterator != update.end()) {
-                if(number_iterator < found_iterator) {
+                if(std::distance(update.begin(), number_iterator) > std::distance(update.begin(), found_iterator)) {
                     return false;
                 }
             }
@@ -69,25 +69,63 @@ bool IsUpdateInRightOrder(const std::vector<int>& update, const PageOrderRules& 
 
 void FirstPart() {
     auto [page_order_rules, updates] = GetInputsFromInputFile();
-
+    int result = 0;
     for(const auto& update : updates) {
         if(IsUpdateInRightOrder(update, page_order_rules))
         {
-            const auto middle_number = update[(update.size() + 1) / 2];
-            std::cout << middle_number << "\n";
+            const auto middle_number = update[(update.size() -1) / 2];
+            // std::cout << middle_number << "\n";
+            result += middle_number;
         }
     }
+
+    std::cout << result << "\n";
+}
+
+std::vector<int> CorrectUpdate(const std::vector<int>& update, const PageOrderRules& page_order_rules) {
+    std::vector<int> result = update;
+    for(auto number_iterator = update.begin(); number_iterator != update.end(); ++number_iterator) {
+        const auto ordering_rules = GetOrderingRulesForNumber(page_order_rules, *number_iterator);
+        for(const auto& rule : ordering_rules) {
+            const auto found_iterator = std::find(update.begin(), update.end(), std::get<1>(rule));
+            if(found_iterator != update.end()) {
+                if(std::distance(update.begin(), number_iterator) > std::distance(update.begin(), found_iterator)) {
+                    auto left = std::find(result.begin(), result.end(), *number_iterator);
+                    auto right = std::find(result.begin(), result.end(), *found_iterator);
+                    std::swap(*left, *right);
+                }
+            }
+        }
+    }
+
+    if(IsUpdateInRightOrder(result, page_order_rules)) {
+        return result;
+    }
+
+    return CorrectUpdate(result, page_order_rules);
 }
 
 void SecondPart() {
+    auto [page_order_rules, updates] = GetInputsFromInputFile();
+    int result = 0;
+    for(const auto& update : updates) {
+        if(!IsUpdateInRightOrder(update, page_order_rules))
+        {
+            const auto corrected_update = CorrectUpdate(update, page_order_rules);
+            const auto middle_number = corrected_update[(corrected_update.size() -1) / 2];
+            // std::cout << middle_number << "\n";
+            result += middle_number;
+        }
+    }
+    std::cout << result << "\n";
 }
 
 int main()
 {
     std::cout << "Advent of code main\n";
 
-    FirstPart();
-    // SecondPart();
+    // FirstPart();
+    SecondPart();
 
     return 0;
 } 
