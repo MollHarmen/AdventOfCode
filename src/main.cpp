@@ -8,75 +8,31 @@
 #include <tuple>
 #include <vector>
 
-typedef std::vector<std::tuple<int,int>> PageOrderRules;
-
-std::tuple<PageOrderRules, std::vector<std::vector<int>>> GetInputsFromInputFile() {
-    auto input_file = Utils::FileIo("input.txt");
-    const auto file_content = input_file.GetFileContent();
-
-    size_t line_index = 0u;
-    PageOrderRules page_order_rules;
-
-    while(file_content[line_index] != "" && line_index != file_content.size()) {
-        std::vector<std::string> order;
-        StringHandling::SplitStringOnCharacter(file_content[line_index++], order, '|');
-        page_order_rules.push_back(std::make_tuple(std::stoi(order[0]), std::stoi(order[1])));
-    }
-
-    ++line_index;
-    std::vector<std::vector<int>> updates;
-    while(line_index != file_content.size()) {
-        std::vector<int> update;
-        std::vector<std::string> update_strings;
-        StringHandling::SplitStringOnCharacter(file_content[line_index++], update_strings, ',');
-
-        for(const auto& number_string : update_strings) {
-            update.push_back(std::stoi(number_string));
+std::tuple<int, int> GetStartPosition(const std::vector<std::string>& map) {
+    for(size_t y = 0u; y != map.size(); ++y) {
+        const auto& line = map[y];
+        const auto found = std::find(line.begin(), line.end(), '^');
+        if(found != line.end()) {
+            return std::make_tuple(y, std::distance(line.begin(), found));
         }
-        
-        updates.push_back(update);
     }
 
-    return std::make_tuple(page_order_rules, updates);
+    return {0, 0};
 }
 
-PageOrderRules GetOrderingRulesForNumber(const PageOrderRules& page_order_rules, const int number) {
-    PageOrderRules rules_for_number;
-    for(const auto& rule : page_order_rules) {
-        if(std::get<0>(rule) == number) {
-            rules_for_number.push_back(rule);
-        }
-    }
+int GetSteps(const int x, const int y, const std::vector<std::string>& map) {
     
-    return rules_for_number;
-}
-
-bool IsUpdateInRightOrder(const std::vector<int>& update, const PageOrderRules& page_order_rules) {
-    for(auto number_iterator = update.begin(); number_iterator != update.end(); ++number_iterator) {
-        const auto ordering_rules = GetOrderingRulesForNumber(page_order_rules, *number_iterator);
-        for(const auto& rule : ordering_rules) {
-            const auto found_iterator = std::find(update.begin(), update.end(), std::get<1>(rule));
-            if(found_iterator != update.end()) {
-                if(number_iterator < found_iterator) {
-                    return false;
-                }
-            }
-        }
-    }
-
-    return true;
 }
 
 void FirstPart() {
-    auto [page_order_rules, updates] = GetInputsFromInputFile();
+    auto input_file = Utils::FileIo("input.txt");
+    const auto file_content = input_file.GetFileContent();
 
-    for(const auto& update : updates) {
-        if(IsUpdateInRightOrder(update, page_order_rules))
-        {
-            const auto middle_number = update[(update.size() + 1) / 2];
-            std::cout << middle_number << "\n";
-        }
-    }
+    auto [x, y] = GetStartPosition(file_content);
+    int number_of_steps = GetSteps(x, y, file_content);
+
+
+    std::cout << x << ", " << y << "\n";
 }
 
 void SecondPart() {
